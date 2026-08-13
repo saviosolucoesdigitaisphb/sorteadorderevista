@@ -1,0 +1,3286 @@
+<!DOCTYPE html>
+<!--
+  ============================================================================
+  Sorteador de Revista — Porto do Piauí
+  © 2026 Sávio Soluções Digitais. Todos os direitos reservados.
+  Desenvolvido por Sávio Soluções Digitais.
+  ============================================================================
+-->
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="description" content="Sorteador de Revista — Porto do Piauí S/A" />
+  <meta name="theme-color" content="#0d1410" />
+  <title>Sorteador de Revista — Porto do Piauí</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 123 68'><path fill='%2386B256' d='M58.17 28.97v7.56C45.65 43.45 30.36 51.06 18.71 52.63 10.55 53.73 4.34 52.81 0 51.51l1.37-7.71c5.84 1.6 14 2.66 22.88.22 10.06-2.75 22.73-9.06 33.92-15.05z'/><path fill='%2386B256' d='M58.17 13.68v7.77C46.97 27.92 34.26 34.7 24.16 36.95 18.08 38.3 12.54 38.29 7.86 37.66l1.41-7.93c4.07.38 8.71.3 13.71-.63 10.28-1.91 23.57-8.82 35.18-15.42z'/><path fill='%2386B256' d='M119.1 32.7l-.43 8.34c-14.3-3.36-28.24 2.32-39.42 7.49-5.05 2.33-12.64 6.52-21.08 10.96v-7.78c7.84-4.28 14.78-8.42 20.27-11.08 10.64-5.14 24.68-11.77 40.66-7.93z'/></svg>" />
+
+  <!-- Firebase SDK (compat) -->
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+  <!-- ExcelJS para exportar o dashboard em .xlsx com gráficos -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
+
+<style>
+/* =============================================================
+   SORTEADOR DE REVISTA — Porto do Piauí S/A
+   Tema corporativo azul-marinho / dourado, responsivo.
+   ============================================================= */
+
+:root {
+  /* Paleta baseada na logo Porto do Piauí (verde #86B256) */
+  --bg:        #0d1410;
+  --bg-2:      #121b15;
+  --surface:   #172219;
+  --surface-2: #1e2d21;
+  --border:    #2c3f30;
+  --text:      #e8f0e6;
+  --text-dim:  #9db29a;
+  --accent:    #86b256;   /* verde institucional (logo) */
+  --accent-2:  #6b9142;   /* verde escuro */
+  --accent-3:  #a3c977;   /* verde claro */
+  --gold:      #86b256;   /* mantido como alias do verde p/ compatibilidade */
+  --gold-2:    #a3c977;
+  --green:     #3f7d3a;
+  --green-bright: #5fae4f;
+  --red:       #b0413a;
+  --red-bright:#d0524a;
+  --amber:     #c08a3e;
+  --radius:    14px;
+  --radius-sm: 8px;
+  --shadow:    0 12px 36px rgba(0,0,0,.5);
+  --sidebar-w: 270px;
+  --font: "Segoe UI", system-ui, -apple-system, Roboto, Helvetica, Arial, sans-serif;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; }
+body {
+  font-family: var(--font);
+  background: radial-gradient(1400px 900px at 70% -15%, #1a2e1d 0%, var(--bg) 60%);
+  color: var(--text);
+  -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
+}
+button { font-family: inherit; cursor: pointer; }
+input  { font-family: inherit; }
+[hidden] { display: none !important; }
+kbd {
+  background: var(--surface-2); border: 1px solid var(--border);
+  border-radius: 5px; padding: 2px 8px; font-size: .85em; color: var(--text);
+}
+code {
+  background: var(--surface-2); padding: 1px 6px;
+  border-radius: 5px; font-size: .9em;
+}
+
+/* ---------- Layout ---------- */
+.app { display: flex; min-height: 100vh; }
+.content {
+  flex: 1; min-width: 0;
+  padding: 32px clamp(16px, 4vw, 48px);
+  margin-left: var(--sidebar-w);
+}
+.view { display: none; animation: fadeIn .25s ease; }
+.view.is-active { display: block; }
+.view-title { font-size: 1.6rem; margin-bottom: 20px; font-weight: 700; }
+@keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; } }
+
+.card {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 24px; box-shadow: var(--shadow);
+}
+
+/* ---------- Sidebar ---------- */
+.sidebar {
+  position: fixed; top: 0; left: 0; bottom: 0;
+  width: var(--sidebar-w);
+  background: linear-gradient(180deg, #101710, #0a0f0b);
+  border-right: 1px solid var(--border);
+  display: flex; flex-direction: column;
+  padding: 0 0 20px;
+  z-index: 50;
+  transition: transform .28s ease;
+}
+
+/* Cabeçalho da sidebar */
+.brand {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 10px;
+  padding: 22px 20px 18px;
+  border-bottom: 1px solid var(--border);
+  background: linear-gradient(160deg, #16231a, #101710);
+}
+.brand-logo { width: 92px; height: auto; display: block; }
+.brand-logo path { fill: var(--accent); }
+.brand-text { display: flex; flex-direction: column; line-height: 1.25; }
+.brand-text strong {
+  font-size: .98rem; letter-spacing: .4px; color: var(--text);
+  font-weight: 700;
+}
+.brand-text span {
+  font-size: .68rem; color: var(--text-dim); letter-spacing: 2px;
+  text-transform: uppercase; margin-top: 3px;
+}
+
+.menu { display: flex; flex-direction: column; gap: 4px; flex: 1; padding: 14px 12px 0; }
+.menu-item {
+  display: flex; align-items: center; gap: 12px;
+  background: transparent; border: none;
+  color: var(--text-dim); padding: 11px 14px;
+  border-radius: var(--radius-sm); font-size: .97rem; text-align: left;
+  transition: background .15s, color .15s;
+}
+.menu-item:hover { background: var(--surface); color: var(--text); }
+.menu-item.is-active {
+  background: rgba(134,178,86,.16);
+  color: var(--text); font-weight: 600;
+  border-left: 3px solid var(--accent);
+}
+.menu-icon {
+  width: 20px; height: 20px; flex: 0 0 20px;
+  display: inline-flex; align-items: center; justify-content: center;
+  color: currentColor;
+}
+.menu-icon svg { width: 18px; height: 18px; stroke: currentColor; fill: none; stroke-width: 1.8; }
+.menu-item.is-active .menu-icon { color: var(--accent-3); }
+
+.sidebar-footer {
+  display: flex; flex-direction: column; gap: 12px;
+  padding: 16px 12px 0;
+  border-top: 1px solid var(--border);
+  margin: 0 12px;
+}
+.switch { display: flex; align-items: center; gap: 10px; cursor: pointer; user-select: none; }
+.switch input { position: absolute; opacity: 0; width: 0; height: 0; }
+.switch-track {
+  position: relative; width: 42px; height: 22px; flex: 0 0 42px;
+  background: var(--border); border-radius: 999px; transition: background .2s;
+}
+.switch-track::after {
+  content: ""; position: absolute; top: 3px; left: 3px;
+  width: 16px; height: 16px; background: #fff; border-radius: 50%;
+  transition: transform .2s;
+}
+.switch input:checked + .switch-track { background: var(--green-bright); }
+.switch input:checked + .switch-track::after { transform: translateX(20px); }
+.switch-label { font-size: .9rem; color: var(--text-dim); }
+
+/* Firebase status badge */
+.firebase-status {
+  display: flex; align-items: center; gap: 8px;
+  font-size: .75rem; color: var(--text-dim); padding: 6px 0;
+}
+.firebase-dot {
+  width: 8px; height: 8px; border-radius: 50%; background: var(--border);
+  transition: background .3s;
+}
+.firebase-dot.ok   { background: var(--green-bright); }
+.firebase-dot.err  { background: var(--red-bright); }
+.firebase-dot.sync { background: var(--accent-3); }
+@keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: .3; } }
+
+/* ---------- Menu toggle (mobile) ---------- */
+.menu-toggle {
+  position: fixed; top: 14px; left: 14px; z-index: 60;
+  width: 46px; height: 46px;
+  background: var(--surface); color: var(--text);
+  border: 1px solid var(--border); border-radius: 10px;
+  font-size: 1.4rem; display: none;
+}
+.overlay-backdrop {
+  position: fixed; inset: 0; background: rgba(0,0,0,.55); z-index: 40;
+}
+
+/* ---------- Botões genéricos ---------- */
+.btn {
+  border: 1px solid transparent; border-radius: var(--radius-sm);
+  padding: 12px 18px; font-size: 1rem; font-weight: 600;
+  color: #0d1410; background: var(--accent);
+  transition: filter .15s, transform .05s;
+}
+.btn:hover  { filter: brightness(1.08); }
+.btn:active { transform: translateY(1px); }
+.btn-sm     { padding: 9px 14px; font-size: .9rem; }
+.btn-block  { width: 100%; }
+.btn-secondary { background: var(--surface-2); border-color: var(--border); color: var(--text); }
+.btn-danger    { background: var(--red); color: #fff; }
+.btn-ghost     { background: transparent; border-color: var(--border); color: var(--text-dim); }
+.btn-ghost:hover { color: var(--text); background: var(--surface); }
+.btn-light     { background: #eef3ea; color: #0d1410; }
+
+/* ---------- View Sorteador ---------- */
+.sorteador-wrap {
+  min-height: calc(100vh - 64px);
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  text-align: center; gap: 24px;
+}
+.sorteador-header { display: flex; flex-direction: column; align-items: center; }
+.header-logo {
+  width: clamp(120px, 22vw, 170px); height: auto; margin-bottom: 18px;
+}
+.header-logo path { fill: var(--accent); }
+.sorteador-header .title {
+  font-size: clamp(1.6rem, 4.5vw, 2.8rem);
+  font-weight: 700; letter-spacing: .5px; color: var(--text);
+}
+.sorteador-header .porto-label {
+  font-size: .82rem; letter-spacing: 4px; color: var(--accent);
+  text-transform: uppercase; margin-bottom: 6px; font-weight: 600;
+}
+.subtitle { color: var(--text-dim); font-size: 1.05rem; margin-top: 10px; }
+.prob-badge {
+  color: var(--bg); background: var(--accent);
+  padding: 2px 12px; border-radius: 999px; font-size: 1rem; font-weight: 700;
+}
+
+/* Campos de identificação (sempre visíveis — obrigatórios) */
+.ident-box {
+  width: min(540px, 90vw);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 18px 20px;
+  text-align: left;
+}
+.ident-box-title {
+  font-size: .8rem; font-weight: 700; letter-spacing: 1.5px;
+  color: var(--gold); text-transform: uppercase; margin-bottom: 14px;
+}
+.ident-fields { display: grid; gap: 10px; }
+.ident-fields input,
+.prob-input-row input,
+input[type="date"] {
+  background: var(--bg-2); border: 1px solid var(--border);
+  border-radius: var(--radius-sm); padding: 11px 14px;
+  color: var(--text); font-size: 1rem; width: 100%;
+  transition: border-color .15s;
+}
+.ident-fields input::placeholder { color: #3d5a80; }
+.ident-fields input:focus { outline: 2px solid var(--gold); outline-offset: 1px; border-color: var(--gold); }
+.ident-fields input.invalid { border-color: var(--red-bright); }
+.field-err { color: var(--red-bright); font-size: .8rem; margin-top: 3px; display: none; }
+.field-err.visible { display: block; }
+.field-label-row {
+  display: flex; justify-content: space-between; align-items: center;
+  margin-bottom: 5px;
+}
+.field-label-row label { font-size: .85rem; color: var(--text-dim); }
+.field-label-row .req { color: var(--red-bright); font-size: .75rem; }
+
+/* Campos extras (opcionais) */
+.extras-toggle { margin-top: 12px; }
+.extras-toggle label {
+  display: flex; align-items: center; gap: 8px;
+  cursor: pointer; font-size: .85rem; color: var(--text-dim);
+}
+.extras-toggle input { accent-color: var(--accent); }
+.extras-fields { display: grid; gap: 10px; margin-top: 10px; }
+
+/* ---------- Modal de identificação ---------- */
+.ident-overlay {
+  position: fixed; inset: 0; z-index: 110;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(4, 8, 20, 0.85);
+  backdrop-filter: blur(6px);
+  animation: fadeIn .18s ease;
+  padding: 16px;
+}
+.ident-modal {
+  width: min(460px, 100%);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  animation: pop .28s cubic-bezier(.18,.89,.32,1.28);
+  overflow: hidden;
+}
+/* Modal grande (formulário completo de revista) com corpo rolável */
+.ident-modal-lg { width: min(620px, 100%); max-height: 92vh; display: flex; flex-direction: column; }
+.ident-modal-lg .ident-modal-body { overflow-y: auto; }
+
+/* Grade de 2 colunas dentro do formulário */
+.fgrid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.fgroup { display: block; }
+
+/* Botões segmentados (Local, Momento, Perfil, Quem) */
+.seg { display: grid; grid-template-columns: repeat(auto-fit, minmax(96px, 1fr)); gap: 8px; }
+.seg-2 { grid-template-columns: 1fr 1fr; }
+.seg button {
+  background: var(--bg-2); border: 1px solid var(--border);
+  color: var(--text-dim); border-radius: var(--radius-sm);
+  padding: 12px 8px; font-size: .88rem; font-weight: 600;
+  transition: all .12s; min-height: 46px;
+}
+.seg button:hover { border-color: var(--accent); color: var(--text); }
+.seg button.sel {
+  background: rgba(134,178,86,.18); border-color: var(--accent);
+  color: var(--accent-3);
+}
+/* Selects */
+.ident-modal-body select {
+  width: 100%; background: var(--bg-2); border: 1px solid var(--border);
+  border-radius: var(--radius-sm); padding: 11px 12px; color: var(--text); font-size: .95rem;
+}
+.ident-modal-body select:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+.ident-modal-body input.invalid,
+.ident-modal-body select.invalid { border-color: var(--red-bright); }
+.seg.invalid button { border-color: var(--red-bright); }
+@media (max-width: 520px) { .fgrid-2 { grid-template-columns: 1fr; } }
+
+.ident-modal-head {
+  display: flex; align-items: center; gap: 14px;
+  padding: 20px 22px;
+  border-bottom: 1px solid var(--border);
+  background: linear-gradient(135deg, rgba(176,65,58,.14), transparent);
+}
+.ident-modal-head.head-gold {
+  background: linear-gradient(135deg, rgba(134,178,86,.16), transparent);
+}
+.ident-modal-icon {
+  width: 32px; height: 32px; flex: 0 0 32px;
+  display: inline-flex; align-items: center; justify-content: center;
+}
+.ident-modal-icon svg { width: 30px; height: 30px; color: var(--red-bright); }
+.ident-modal-head.head-gold .ident-modal-icon svg { color: var(--accent-3); }
+.ident-modal-title { font-size: 1.15rem; font-weight: 800; letter-spacing: .5px; }
+.ident-modal-sub { font-size: .82rem; color: var(--text-dim); margin-top: 2px; }
+.ident-modal-body { padding: 20px 22px; display: grid; gap: 14px; }
+.ident-modal-actions {
+  display: flex; gap: 10px; padding: 16px 22px 20px;
+  border-top: 1px solid var(--border);
+}
+.ident-modal-actions .btn { flex: 1; }
+
+/* Botões de ação do sorteador */
+.sorteio-actions {
+  display: flex; flex-direction: column;
+  align-items: center; gap: 14px;
+  width: min(540px, 90vw);
+}
+.btn-sorteio {
+  display: flex; align-items: center; justify-content: center; gap: 16px;
+  width: 100%; min-height: 110px;
+  border: none; border-radius: 16px;
+  background: linear-gradient(135deg, var(--accent), var(--accent-2));
+  color: #0d1410;
+  font-size: clamp(1.3rem, 3.5vw, 1.85rem); font-weight: 800; letter-spacing: 1px;
+  box-shadow: 0 14px 40px rgba(134,178,86,.3);
+  transition: transform .08s, filter .15s, box-shadow .15s;
+}
+.btn-sorteio:hover  { filter: brightness(1.08); box-shadow: 0 18px 50px rgba(134,178,86,.42); }
+.btn-sorteio:active { transform: scale(.98); }
+.btn-sorteio:disabled { opacity: .5; cursor: not-allowed; }
+
+/* Ação discreta "obrigar revista" — 3 pontinhos apagados, bem embaixo */
+.obrigar-link {
+  margin-top: 60px;
+  background: transparent; border: none;
+  color: rgba(122,151,201,.28);
+  font-size: 1.6rem; line-height: 1;
+  letter-spacing: 4px;
+  padding: 10px 16px; border-radius: 8px;
+  transition: color .2s, background .2s;
+}
+.obrigar-link:hover { color: rgba(134,178,86,.6); }
+.obrigar-link:active { transform: translateY(1px); }
+.obrigar-link.is-armed {
+  color: var(--gold-2);
+  background: rgba(134,178,86,.14);
+}
+
+/* Aviso de revista armada */
+.aviso-armado {
+  margin-top: 16px;
+  background: rgba(200,152,42,.14);
+  border: 1px solid var(--gold);
+  color: var(--gold-2);
+  border-radius: 999px;
+  padding: 9px 20px;
+  font-size: .9rem; font-weight: 600;
+  animation: pulse 1.4s infinite;
+}
+.aviso-armado strong { color: #fff; }
+
+.hint { color: var(--text-dim); font-size: .9rem; }
+
+/* ---------- Dashboard ---------- */
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 16px;
+}
+.stat-card {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 22px;
+  display: flex; flex-direction: column; gap: 8px;
+  box-shadow: var(--shadow);
+}
+.stat-label { color: var(--text-dim); font-size: .82rem; text-transform: uppercase; letter-spacing: .5px; }
+.stat-value { font-size: 2.4rem; font-weight: 800; }
+.stat-green { border-color: rgba(26,173,85,.35); }
+.stat-green .stat-value { color: var(--green-bright); }
+.stat-red   { border-color: rgba(229,0,42,.35); }
+.stat-red   .stat-value { color: var(--red-bright); }
+.stat-wide  { grid-column: 1 / -1; }
+.bar { height: 10px; background: var(--bg-2); border-radius: 999px; overflow: hidden; margin-top: 6px; }
+.bar-fill { height: 100%; background: linear-gradient(90deg, var(--amber), var(--red-bright)); transition: width .5s ease; }
+
+/* ---------- KPIs do dashboard ---------- */
+.kpi-row {
+  display: grid; gap: 14px;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+}
+.kpi {
+  background: linear-gradient(160deg, var(--surface), var(--bg-2));
+  border: 1px solid var(--border); border-left: 3px solid var(--accent);
+  border-radius: var(--radius); padding: 16px 18px;
+  display: flex; flex-direction: column; gap: 2px;
+}
+.kpi-label { font-size: .72rem; text-transform: uppercase; letter-spacing: 1px; color: var(--text-dim); }
+.kpi-value { font-size: 2rem; font-weight: 800; color: var(--accent-3); line-height: 1.1; }
+.kpi-sub   { font-size: .72rem; color: var(--text-dim); }
+
+/* ---------- Gráficos ---------- */
+.charts-grid {
+  display: grid; gap: 16px; margin-top: 16px;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+}
+.chart-card {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 20px; box-shadow: var(--shadow);
+}
+.chart-wide { grid-column: 1 / -1; }
+.chart-title { font-size: .95rem; font-weight: 700; margin-bottom: 16px; color: var(--text); }
+
+/* Barras verticais */
+.chart-bars {
+  display: flex; align-items: flex-end; gap: 10px;
+  height: 200px; padding-top: 20px;
+}
+.cbar {
+  flex: 1; display: flex; flex-direction: column; align-items: center;
+  justify-content: flex-end; gap: 6px; height: 100%; min-width: 0;
+}
+.cbar-fill {
+  width: 100%; max-width: 46px; border-radius: 6px 6px 0 0;
+  background: linear-gradient(180deg, var(--accent-3), var(--accent-2));
+  position: relative; transition: height .5s ease; min-height: 2px;
+}
+.cbar-val {
+  position: absolute; top: -18px; left: 0; right: 0; text-align: center;
+  font-size: .72rem; font-weight: 700; color: var(--text);
+}
+.cbar-label { font-size: .74rem; color: var(--text-dim); text-align: center; white-space: nowrap; }
+
+/* Barras horizontais (por mês) */
+.chart-bars-h {
+  flex-direction: column; align-items: stretch; height: auto; gap: 8px; padding-top: 0;
+}
+.hbar { display: flex; align-items: center; gap: 10px; }
+.hbar-label { font-size: .76rem; color: var(--text-dim); width: 52px; flex: 0 0 52px; text-align: right; }
+.hbar-track { flex: 1; background: var(--bg-2); border-radius: 6px; overflow: hidden; height: 20px; }
+.hbar-fill {
+  height: 100%; border-radius: 6px;
+  background: linear-gradient(90deg, var(--accent-2), var(--accent-3));
+  transition: width .5s ease; min-width: 2px;
+}
+.hbar-val { font-size: .74rem; font-weight: 700; color: var(--text); width: 42px; flex: 0 0 42px; }
+.dash-empty { text-align: center; color: var(--text-dim); padding: 30px; }
+
+/* Gráfico de rosca (donut) */
+.donut-wrap { display: flex; align-items: center; gap: 18px; flex-wrap: wrap; }
+.donut-svg { width: 160px; height: 160px; flex: 0 0 160px; }
+.donut-total { fill: var(--text); font-size: 30px; font-weight: 800; }
+.donut-total-lbl { fill: var(--text-dim); font-size: 11px; text-transform: uppercase; letter-spacing: 1px; }
+.donut-legend { flex: 1; min-width: 140px; display: flex; flex-direction: column; gap: 7px; }
+.donut-leg-item { display: flex; align-items: center; gap: 8px; font-size: .82rem; }
+.donut-dot { width: 11px; height: 11px; border-radius: 3px; flex: 0 0 11px; }
+.donut-leg-label { color: var(--text-dim); flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.donut-leg-val { color: var(--text); font-weight: 700; font-size: .78rem; white-space: nowrap; }
+
+/* ---------- Histórico ---------- */
+.toolbar {
+  display: flex; flex-wrap: wrap; gap: 14px;
+  justify-content: space-between; align-items: flex-end;
+  margin-bottom: 18px;
+}
+.filters { display: flex; flex-wrap: wrap; gap: 14px; align-items: flex-end; }
+.filter-group { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.filter-dates label { display: flex; flex-direction: column; font-size: .78rem; color: var(--text-dim); gap: 4px; }
+.filter-dates input { width: auto; }
+.toolbar-actions { display: flex; gap: 10px; flex-wrap: wrap; }
+
+.chip {
+  background: var(--surface-2); border: 1px solid var(--border);
+  color: var(--text-dim); border-radius: 999px;
+  padding: 7px 15px; font-size: .88rem; font-weight: 600;
+  transition: all .15s;
+}
+.chip:hover { color: var(--text); border-color: var(--accent); }
+.chip.is-active { background: var(--accent-2); color: #fff; border-color: var(--accent-2); }
+
+.table-wrap { overflow-x: auto; border-radius: var(--radius); border: 1px solid var(--border); }
+.table { width: 100%; border-collapse: collapse; min-width: 680px; }
+.table thead th {
+  background: var(--surface-2); text-align: left;
+  padding: 13px 15px; font-size: .78rem; text-transform: uppercase;
+  letter-spacing: .5px; color: var(--text-dim); position: sticky; top: 0;
+}
+.table tbody td { padding: 12px 15px; border-top: 1px solid var(--border); font-size: .93rem; }
+.table tbody tr:hover { background: var(--surface); }
+.badge { padding: 4px 11px; border-radius: 999px; font-size: .8rem; font-weight: 700; }
+.badge-green { background: rgba(26,173,85,.15); color: var(--green-bright); }
+.badge-red   { background: rgba(229,0,42,.15);  color: var(--red-bright); }
+.badge-gold  { background: rgba(200,152,42,.18); color: var(--gold-2); font-size: .7rem; }
+.code-cell { font-family: ui-monospace,"Courier New",monospace; font-size: .86rem; }
+.empty-state { padding: 40px; text-align: center; color: var(--text-dim); }
+
+/* ---------- Configurações ---------- */
+.config-card  { max-width: 560px; }
+.field-label  { display: block; font-weight: 600; margin-bottom: 12px; font-size: 1.05rem; }
+.prob-input-row { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
+.prob-input-row input { font-size: 1.4rem; font-weight: 700; text-align: center; max-width: 150px; }
+.prob-unit { font-size: 1.4rem; font-weight: 700; color: var(--text-dim); }
+.range { width: 100%; accent-color: var(--gold); height: 6px; margin-bottom: 18px; }
+.quick-buttons { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px; }
+.config-hint  { color: var(--text-dim); font-size: .88rem; }
+.config-saved { color: var(--green-bright); font-weight: 600; margin-top: 10px; }
+
+/* ---------- Sobre ---------- */
+.about-card { max-width: 640px; }
+.about-card h3 { font-size: 1.4rem; margin-bottom: 8px; }
+.about-card p  { color: var(--text-dim); margin-bottom: 8px; }
+.about-meta    { font-weight: 700; color: var(--gold); }
+.about-list    { margin-top: 14px; padding-left: 20px; color: var(--text-dim); display: grid; gap: 8px; }
+.about-credit  { margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--border);
+  font-size: .78rem; color: var(--text-dim); opacity: .7; }
+
+/* ---------- Overlay de resultado ---------- */
+.result-overlay {
+  position: fixed; inset: 0; z-index: 100;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(4, 8, 20, 0.93);
+  backdrop-filter: blur(7px);
+  animation: fadeIn .2s ease;
+}
+.result-overlay.result-green { background: radial-gradient(circle at center, rgba(63,125,58,.4), rgba(13,20,16,.97)); }
+.result-overlay.result-red   { background: radial-gradient(circle at center, rgba(176,65,58,.42), rgba(13,20,16,.97)); }
+.result-overlay.result-gold  { background: radial-gradient(circle at center, rgba(134,178,86,.4), rgba(13,20,16,.97)); }
+.result-inner { text-align: center; padding: 24px; width: 100%; }
+
+.result-sorteando { display: flex; flex-direction: column; align-items: center; gap: 22px; }
+.spinner {
+  width: 80px; height: 80px;
+  border: 6px solid var(--surface-2);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin .75s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+.sorteando-text { font-size: 1.4rem; font-weight: 600; letter-spacing: 3px; color: var(--text-dim); }
+
+.result-final { animation: pop .35s cubic-bezier(.18,.89,.32,1.28); }
+@keyframes pop { from { opacity: 0; transform: scale(.65); } to { opacity: 1; transform: scale(1); } }
+.result-icon {
+  width: clamp(90px, 22vw, 130px); height: clamp(90px, 22vw, 130px);
+  margin: 0 auto 6px;
+}
+.result-icon svg { width: 100%; height: 100%; }
+.result-green .result-icon svg { color: var(--green-bright); }
+.result-red   .result-icon svg { color: var(--red-bright); }
+.result-gold  .result-icon svg { color: var(--accent-3); }
+.result-status {
+  font-size: clamp(2rem, 7vw, 4rem);
+  font-weight: 800; letter-spacing: 1px; margin: 8px 0;
+}
+.result-green .result-status { color: var(--green-bright); }
+.result-red   .result-status { color: var(--red-bright); }
+.result-gold  .result-status { color: var(--accent-3); }
+.result-desc  { font-size: clamp(1rem, 3vw, 1.4rem); color: var(--text); margin-bottom: 16px; }
+.result-person {
+  font-size: 1.1rem; color: var(--text-dim);
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius-sm); padding: 8px 20px;
+  margin-bottom: 14px; display: inline-block; min-width: 220px;
+}
+.result-person strong { color: var(--text); }
+.result-code { font-size: .9rem; color: var(--text-dim); line-height: 1.7; }
+.result-code span { font-family: ui-monospace,"Courier New",monospace; font-size: 1.25rem; font-weight: 700; color: var(--text); letter-spacing: 1px; }
+.result-forced-tag {
+  display: inline-block; background: rgba(134,178,86,.18);
+  color: var(--accent-3); border: 1px solid var(--accent);
+  border-radius: 999px; font-size: .75rem; font-weight: 700;
+  padding: 3px 12px; margin-bottom: 10px; letter-spacing: 1px;
+}
+.result-close { margin-top: 22px; }
+
+/* ---------- Modo Portaria ---------- */
+body.modo-portaria .sidebar,
+body.modo-portaria .menu-toggle { display: none; }
+body.modo-portaria .content { margin-left: 0; padding: 0; }
+body.modo-portaria .view:not(#view-sorteador) { display: none !important; }
+body.modo-portaria .sorteador-wrap { min-height: 100vh; }
+/* Esconde o aviso visível de "revista armada" no modo portaria,
+   para que o porteiro/visitante não perceba que foi armado.
+   O link discreto "obrigar revista" continua acessível ao operador. */
+body.modo-portaria .aviso-armado { display: none !important; }
+
+/* Créditos discretos no canto inferior direito */
+.credito-dev {
+  position: fixed; right: 12px; bottom: 10px; z-index: 30;
+  font-size: .68rem; letter-spacing: .3px;
+  color: rgba(122,151,201,.28);
+  pointer-events: none; user-select: none;
+}
+.credito-dev:hover { color: rgba(122,151,201,.45); }
+
+/* Link discreto "trocar vigilante" no canto inferior esquerdo */
+.trocar-vig-link {
+  position: fixed; left: 12px; bottom: 10px; z-index: 30;
+  background: transparent; border: none;
+  font-size: .72rem; letter-spacing: .3px;
+  color: rgba(122,151,201,.32);
+  padding: 4px 8px; border-radius: 6px;
+  transition: color .2s, background .2s;
+}
+.trocar-vig-link:hover { color: var(--accent-3); background: rgba(134,178,86,.08); }
+/* Só aparece quando há vigilante logado */
+.trocar-vig-link { display: none; }
+body.tem-vigilante .trocar-vig-link { display: inline-block; }
+
+/* ---------- Login do vigilante ---------- */
+.login-overlay {
+  position: fixed; inset: 0; z-index: 200;
+  display: flex; align-items: center; justify-content: center;
+  background: radial-gradient(1000px 700px at 50% 0%, #1a2e1d 0%, var(--bg) 65%);
+  padding: 20px;
+}
+.login-box {
+  width: min(420px, 100%);
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius); box-shadow: var(--shadow);
+  padding: 34px 30px; text-align: center;
+  display: flex; flex-direction: column; align-items: center;
+}
+.login-logo { width: 130px; height: auto; margin-bottom: 14px; }
+.login-logo path { fill: var(--accent); }
+.login-porto { font-size: .78rem; letter-spacing: 3px; color: var(--accent);
+  text-transform: uppercase; font-weight: 600; }
+.login-title { font-size: 1.5rem; font-weight: 700; margin: 4px 0 18px; color: var(--text); }
+.login-instr { font-size: .92rem; color: var(--text-dim); margin-bottom: 20px; }
+.login-field { width: 100%; text-align: left; margin-bottom: 18px; }
+.login-field label { display: block; font-size: .82rem; color: var(--text-dim); margin-bottom: 6px; }
+.login-field input {
+  width: 100%; background: var(--bg-2); border: 1px solid var(--border);
+  border-radius: var(--radius-sm); padding: 12px 14px; color: var(--text); font-size: 1rem;
+}
+.login-field input:focus { outline: 2px solid var(--accent); outline-offset: 1px; border-color: var(--accent); }
+.login-field input.invalid { border-color: var(--red-bright); }
+
+/* ---------- Caixa do vigilante na sidebar ---------- */
+.vigilante-box {
+  background: var(--bg-2); border: 1px solid var(--border);
+  border-left: 3px solid var(--accent);
+  border-radius: var(--radius-sm); padding: 10px 12px; margin-bottom: 4px;
+}
+.vigilante-label { display: block; font-size: .66rem; text-transform: uppercase;
+  letter-spacing: 1px; color: var(--text-dim); }
+.vigilante-nome { display: block; font-size: .92rem; font-weight: 700; color: var(--accent-3);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+.portaria-exit {
+  position: fixed; top: 16px; right: 16px; z-index: 70; display: none;
+}
+body.modo-portaria .portaria-exit { display: inline-flex; }
+
+/* ---------- Responsividade ---------- */
+@media (max-width: 900px) {
+  .sidebar { transform: translateX(-100%); }
+  .sidebar.is-open { transform: translateX(0); box-shadow: var(--shadow); }
+  .content { margin-left: 0; padding-top: 72px; }
+  .menu-toggle { display: block; }
+}
+@media (min-width: 901px) {
+  .overlay-backdrop { display: none !important; }
+}
+@media (max-width: 560px) {
+  .toolbar { flex-direction: column; align-items: stretch; }
+  .toolbar-actions { justify-content: stretch; }
+  .toolbar-actions .btn { flex: 1; }
+  .stat-value { font-size: 2rem; }
+  .view-title { font-size: 1.3rem; }
+}
+@media (max-width: 380px) {
+  .btn-sorteio { min-height: 90px; }
+}
+</style>
+</head>
+<body>
+<!-- Créditos discretos -->
+<div class="credito-dev" aria-hidden="false">© Sávio Soluções Digitais</div>
+<button id="btnTrocarVigilanteTela" class="trocar-vig-link" type="button">trocar vigilante</button>
+
+<!-- ================= LOGIN DO VIGILANTE ================= -->
+<div id="loginOverlay" class="login-overlay" hidden aria-modal="true" role="dialog">
+  <div class="login-box">
+    <svg class="login-logo" viewBox="0 0 123 68" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Porto do Piauí">
+      <path d="M116.186 0.836385L115.76 9.17126C102.046 7.08754 88.4283 12.9068 78.7966 17.7976C73.8001 20.3348 66.3797 24.567 58.1726 28.9612V21.4469C66.3372 16.7288 73.715 12.1619 78.6903 9.63551C88.3219 4.7555 102.323 -1.20415 116.186 0.836385Z"/>
+      <path d="M123 18.5861L122.596 26.5755C106.118 20.292 89.906 27.4932 78.7116 33.0642C73.1941 35.8065 66.1033 39.9739 58.1726 44.2277V36.5407C64.8701 32.8375 70.7809 29.3286 74.9057 27.0613C85.9831 20.9613 105.448 12.119 123 18.5969V18.5861Z"/>
+      <path d="M58.1724 44.2168V51.7096C46.1701 58.2522 32.0947 65.0864 17.9981 67.2889C11.7046 68.2713 6.01701 68.0338 1.29688 67.3213L2.61511 59.9365C7.05884 60.4979 12.2786 60.6166 17.9981 59.7205C31.6695 57.572 45.9362 50.7811 58.1724 44.2168Z"/>
+      <path d="M58.1724 13.6841V21.4467C46.9674 27.9246 34.2635 34.7048 24.1641 36.9505C18.0832 38.3 12.5444 38.2892 7.8562 37.6631L9.27012 29.7276C13.3418 30.1055 17.9769 30.0299 22.984 29.1014C33.2642 27.1905 46.5528 20.2807 58.1618 13.6841H58.1724Z"/>
+      <path d="M58.1725 28.9717V36.5292C45.6493 43.4498 30.362 51.0613 18.7105 52.6268C10.5459 53.728 4.33742 52.8103 0 51.5147L1.37139 43.806C7.20778 45.4039 15.3723 46.462 24.2492 44.022C34.306 41.2689 46.9781 34.9637 58.1725 28.9717Z"/>
+      <path d="M119.099 32.6965L118.673 41.0422C104.375 37.6845 90.4375 43.3634 79.2538 48.5349C74.2041 50.867 66.6136 55.056 58.1726 59.4934V51.7091C66.0076 47.4337 72.9496 43.2879 78.4458 40.6319C89.0767 35.4928 103.12 28.8638 119.099 32.6965Z"/>
+    </svg>
+    <p class="login-porto">Porto do Piauí</p>
+    <h1 class="login-title">Sorteador de Revista</h1>
+    <p class="login-instr">Identifique-se para iniciar o turno</p>
+    <div class="login-field">
+      <label for="vigilanteNome">Nome do vigilante</label>
+      <input type="text" id="vigilanteNome" placeholder="Digite seu nome completo" autocomplete="off" />
+      <div class="field-err" id="errVigilante">Informe seu nome para continuar.</div>
+    </div>
+    <button id="btnIniciarTurno" class="btn btn-block" type="button">Iniciar turno</button>
+  </div>
+</div>
+
+<div id="app" class="app">
+
+  <!-- ================= SIDEBAR ================= -->
+  <aside id="sidebar" class="sidebar" aria-label="Menu principal">
+    <div class="brand">
+      <svg class="brand-logo" viewBox="0 0 123 68" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Porto do Piauí">
+        <path d="M116.186 0.836385L115.76 9.17126C102.046 7.08754 88.4283 12.9068 78.7966 17.7976C73.8001 20.3348 66.3797 24.567 58.1726 28.9612V21.4469C66.3372 16.7288 73.715 12.1619 78.6903 9.63551C88.3219 4.7555 102.323 -1.20415 116.186 0.836385Z"/>
+        <path d="M123 18.5861L122.596 26.5755C106.118 20.292 89.906 27.4932 78.7116 33.0642C73.1941 35.8065 66.1033 39.9739 58.1726 44.2277V36.5407C64.8701 32.8375 70.7809 29.3286 74.9057 27.0613C85.9831 20.9613 105.448 12.119 123 18.5969V18.5861Z"/>
+        <path d="M58.1724 44.2168V51.7096C46.1701 58.2522 32.0947 65.0864 17.9981 67.2889C11.7046 68.2713 6.01701 68.0338 1.29688 67.3213L2.61511 59.9365C7.05884 60.4979 12.2786 60.6166 17.9981 59.7205C31.6695 57.572 45.9362 50.7811 58.1724 44.2168Z"/>
+        <path d="M58.1724 13.6841V21.4467C46.9674 27.9246 34.2635 34.7048 24.1641 36.9505C18.0832 38.3 12.5444 38.2892 7.8562 37.6631L9.27012 29.7276C13.3418 30.1055 17.9769 30.0299 22.984 29.1014C33.2642 27.1905 46.5528 20.2807 58.1618 13.6841H58.1724Z"/>
+        <path d="M58.1725 28.9717V36.5292C45.6493 43.4498 30.362 51.0613 18.7105 52.6268C10.5459 53.728 4.33742 52.8103 0 51.5147L1.37139 43.806C7.20778 45.4039 15.3723 46.462 24.2492 44.022C34.306 41.2689 46.9781 34.9637 58.1725 28.9717Z"/>
+        <path d="M119.099 32.6965L118.673 41.0422C104.375 37.6845 90.4375 43.3634 79.2538 48.5349C74.2041 50.867 66.6136 55.056 58.1726 59.4934V51.7091C66.0076 47.4337 72.9496 43.2879 78.4458 40.6319C89.0767 35.4928 103.12 28.8638 119.099 32.6965Z"/>
+      </svg>
+      <div class="brand-text">
+        <strong>Sorteador de Revista</strong>
+        <span>Porto do Piauí</span>
+      </div>
+    </div>
+
+    <nav class="menu" role="navigation">
+      <button class="menu-item is-active" data-view="sorteador" type="button">
+        <span class="menu-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8" cy="8" r="1.4" fill="currentColor" stroke="none"/><circle cx="16" cy="16" r="1.4" fill="currentColor" stroke="none"/><circle cx="16" cy="8" r="1.4" fill="currentColor" stroke="none"/><circle cx="8" cy="16" r="1.4" fill="currentColor" stroke="none"/></svg></span><span>Sorteador</span>
+      </button>
+      <button class="menu-item" data-view="dashboard" type="button">
+        <span class="menu-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><line x1="5" y1="20" x2="5" y2="12"/><line x1="12" y1="20" x2="12" y2="5"/><line x1="19" y1="20" x2="19" y2="15"/></svg></span><span>Dashboard</span>
+      </button>
+      <button class="menu-item" data-view="historico" type="button">
+        <span class="menu-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><line x1="8" y1="7" x2="20" y2="7"/><line x1="8" y1="12" x2="20" y2="12"/><line x1="8" y1="17" x2="20" y2="17"/><circle cx="4" cy="7" r="1" fill="currentColor" stroke="none"/><circle cx="4" cy="12" r="1" fill="currentColor" stroke="none"/><circle cx="4" cy="17" r="1" fill="currentColor" stroke="none"/></svg></span><span>Histórico</span>
+      </button>
+      <button class="menu-item" data-view="config" type="button">
+        <span class="menu-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z"/></svg></span><span>Configurações</span>
+      </button>
+      <button class="menu-item" data-view="sobre" type="button">
+        <span class="menu-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><line x1="12" y1="11" x2="12" y2="16"/><circle cx="12" cy="8" r="1" fill="currentColor" stroke="none"/></svg></span><span>Sobre</span>
+      </button>
+    </nav>
+
+    <div class="sidebar-footer">
+      <div class="vigilante-box">
+        <span class="vigilante-label">Vigilante do turno</span>
+        <span class="vigilante-nome" id="vigilanteAtual">—</span>
+        <button id="btnTrocarVigilante" class="btn btn-ghost btn-sm btn-block" type="button" style="margin-top:8px">
+          Trocar vigilante
+        </button>
+      </div>
+      <label class="switch">
+        <input type="checkbox" id="somToggle" checked />
+        <span class="switch-track" aria-hidden="true"></span>
+        <span class="switch-label">Som ativado</span>
+      </label>
+      <button id="btnModoPortaria" class="btn btn-ghost btn-block btn-sm" type="button">
+        Bloquear (Modo Portaria)
+      </button>
+      <div class="firebase-status">
+        <span class="firebase-dot" id="fbDot"></span>
+        <span id="fbLabel">Conectando…</span>
+      </div>
+    </div>
+  </aside>
+
+  <button id="menuToggle" class="menu-toggle" type="button" aria-label="Abrir menu">☰</button>
+  <div id="overlayBackdrop" class="overlay-backdrop" hidden></div>
+
+  <!-- ================= CONTEÚDO PRINCIPAL ================= -->
+  <main class="content">
+
+    <!-- VIEW: SORTEADOR -->
+    <section id="view-sorteador" class="view is-active" aria-label="Sorteador">
+      <div class="sorteador-wrap">
+        <header class="sorteador-header">
+          <svg class="header-logo" viewBox="0 0 123 68" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Porto do Piauí">
+            <path d="M116.186 0.836385L115.76 9.17126C102.046 7.08754 88.4283 12.9068 78.7966 17.7976C73.8001 20.3348 66.3797 24.567 58.1726 28.9612V21.4469C66.3372 16.7288 73.715 12.1619 78.6903 9.63551C88.3219 4.7555 102.323 -1.20415 116.186 0.836385Z"/>
+            <path d="M123 18.5861L122.596 26.5755C106.118 20.292 89.906 27.4932 78.7116 33.0642C73.1941 35.8065 66.1033 39.9739 58.1726 44.2277V36.5407C64.8701 32.8375 70.7809 29.3286 74.9057 27.0613C85.9831 20.9613 105.448 12.119 123 18.5969V18.5861Z"/>
+            <path d="M58.1724 44.2168V51.7096C46.1701 58.2522 32.0947 65.0864 17.9981 67.2889C11.7046 68.2713 6.01701 68.0338 1.29688 67.3213L2.61511 59.9365C7.05884 60.4979 12.2786 60.6166 17.9981 59.7205C31.6695 57.572 45.9362 50.7811 58.1724 44.2168Z"/>
+            <path d="M58.1724 13.6841V21.4467C46.9674 27.9246 34.2635 34.7048 24.1641 36.9505C18.0832 38.3 12.5444 38.2892 7.8562 37.6631L9.27012 29.7276C13.3418 30.1055 17.9769 30.0299 22.984 29.1014C33.2642 27.1905 46.5528 20.2807 58.1618 13.6841H58.1724Z"/>
+            <path d="M58.1725 28.9717V36.5292C45.6493 43.4498 30.362 51.0613 18.7105 52.6268C10.5459 53.728 4.33742 52.8103 0 51.5147L1.37139 43.806C7.20778 45.4039 15.3723 46.462 24.2492 44.022C34.306 41.2689 46.9781 34.9637 58.1725 28.9717Z"/>
+            <path d="M119.099 32.6965L118.673 41.0422C104.375 37.6845 90.4375 43.3634 79.2538 48.5349C74.2041 50.867 66.6136 55.056 58.1726 59.4934V51.7091C66.0076 47.4337 72.9496 43.2879 78.4458 40.6319C89.0767 35.4928 103.12 28.8638 119.099 32.6965Z"/>
+          </svg>
+          <p class="porto-label">Porto do Piauí</p>
+          <h1 class="title">SORTEADOR DE REVISTA</h1>
+          <span id="probLabel" hidden>10%</span>
+        </header>
+
+        <!-- Botões de ação -->
+        <div class="sorteio-actions">
+          <button id="btnSorteio" class="btn-sorteio" type="button">
+            <span>REALIZAR SORTEIO</span>
+          </button>
+        </div>
+
+        <!-- Aviso: revista armada para o próximo sorteio -->
+        <div id="avisoArmado" class="aviso-armado" hidden>
+          Revista <strong>armada</strong> — o próximo sorteio será revista
+        </div>
+
+        <!-- Ação discreta do operador -->
+        <button id="btnObrigar" class="obrigar-link" type="button" aria-label="obrigar revista">•••</button>
+      </div>
+    </section>
+
+    <!-- VIEW: DASHBOARD -->
+    <section id="view-dashboard" class="view" aria-label="Dashboard" hidden>
+      <h2 class="view-title">Dashboard — Gestão das Revistas</h2>
+
+      <!-- KPIs principais -->
+      <div class="kpi-row">
+        <div class="kpi">
+          <span class="kpi-label">Realizadas</span>
+          <span class="kpi-value" id="kpiRealizadas">0</span>
+          <span class="kpi-sub">revistas registradas</span>
+        </div>
+        <div class="kpi">
+          <span class="kpi-label">Sorteios</span>
+          <span class="kpi-value" id="kpiSorteios">0</span>
+          <span class="kpi-sub">total no período</span>
+        </div>
+        <div class="kpi">
+          <span class="kpi-label">Dias</span>
+          <span class="kpi-value" id="kpiDias">0</span>
+          <span class="kpi-sub">com atividade</span>
+        </div>
+        <div class="kpi">
+          <span class="kpi-label">Média/dia</span>
+          <span class="kpi-value" id="kpiMedia">0</span>
+          <span class="kpi-sub">revistas por dia</span>
+        </div>
+        <div class="kpi">
+          <span class="kpi-label">Dia + revistado</span>
+          <span class="kpi-value" id="kpiDiaTop">—</span>
+          <span class="kpi-sub">da semana</span>
+        </div>
+      </div>
+
+      <!-- Comparativo liberados x revistas -->
+      <div class="stats-grid" style="margin-top:16px">
+        <div class="stat-card stat-green">
+          <span class="stat-label">Liberados</span>
+          <span class="stat-value" id="statLiberados">0</span>
+        </div>
+        <div class="stat-card stat-red">
+          <span class="stat-label">Revistas</span>
+          <span class="stat-value" id="statRevistas">0</span>
+        </div>
+        <div class="stat-card">
+          <span class="stat-label">% Configurado</span>
+          <span class="stat-value" id="statConfig">10%</span>
+        </div>
+        <div class="stat-card">
+          <span class="stat-label">% Real de Revistas</span>
+          <span class="stat-value" id="statReal">0%</span>
+          <div class="bar"><div class="bar-fill" id="statBar" style="width:0%"></div></div>
+        </div>
+      </div>
+
+      <!-- Gráficos -->
+      <div class="charts-grid">
+        <div class="chart-card">
+          <h3 class="chart-title">Por local da revista</h3>
+          <div class="chart-bars chart-bars-h" id="chartLocal"></div>
+        </div>
+        <div class="chart-card">
+          <h3 class="chart-title">Perfil do revistado</h3>
+          <div class="chart-bars chart-bars-h" id="chartColaborador"></div>
+        </div>
+        <div class="chart-card">
+          <h3 class="chart-title">Revistas por dia da semana</h3>
+          <div class="chart-bars" id="chartDiaSemana"></div>
+        </div>
+        <div class="chart-card">
+          <h3 class="chart-title">Revistas por turno</h3>
+          <div class="chart-bars" id="chartTurno"></div>
+        </div>
+        <div class="chart-card">
+          <h3 class="chart-title">Momento (entrada / saída)</h3>
+          <div class="chart-bars" id="chartMomento"></div>
+        </div>
+        <div class="chart-card">
+          <h3 class="chart-title">Sexo do revistado</h3>
+          <div class="chart-bars" id="chartSexo"></div>
+        </div>
+        <div class="chart-card">
+          <h3 class="chart-title">Tipo de revista</h3>
+          <div class="chart-bars" id="chartTipoRevista"></div>
+        </div>
+        <div class="chart-card">
+          <h3 class="chart-title">Quem foi revistado</h3>
+          <div class="chart-bars" id="chartQuem"></div>
+        </div>
+        <div class="chart-card chart-wide">
+          <h3 class="chart-title">Não conformidades (o que foi encontrado)</h3>
+          <div class="chart-bars chart-bars-h" id="chartAchado"></div>
+        </div>
+        <div class="chart-card chart-wide">
+          <h3 class="chart-title">Distribuição no tempo (por mês)</h3>
+          <div class="chart-bars chart-bars-h" id="chartMes"></div>
+        </div>
+        <div class="chart-card chart-wide">
+          <h3 class="chart-title">Distribuição por hora do dia</h3>
+          <div class="chart-bars" id="chartHora"></div>
+        </div>
+      </div>
+
+      <div style="margin-top:18px; text-align:right">
+        <button class="btn btn-sm" id="btnExportarExcel" type="button">Exportar Dashboard em Excel</button>
+      </div>
+
+      <p class="dash-empty" id="dashEmpty" hidden>Ainda não há revistas registradas para gerar os gráficos.</p>
+    </section>
+
+    <!-- VIEW: HISTÓRICO -->
+    <section id="view-historico" class="view" aria-label="Histórico de sorteios" hidden>
+      <h2 class="view-title">Histórico de Sorteios</h2>
+
+      <div class="toolbar">
+        <div class="filters">
+          <div class="filter-group" role="group" aria-label="Filtrar por resultado">
+            <button class="chip is-active" data-filter="todos"    type="button">Todos</button>
+            <button class="chip"           data-filter="LIBERADO" type="button">Liberados</button>
+            <button class="chip"           data-filter="REVISTA"  type="button">Revistas</button>
+          </div>
+          <div class="filter-group filter-dates">
+            <label>De   <input type="date" id="filtroInicio" /></label>
+            <label>Até  <input type="date" id="filtroFim" /></label>
+            <button class="btn btn-ghost btn-sm" id="btnLimparFiltroData" type="button">Limpar datas</button>
+          </div>
+        </div>
+        <div class="toolbar-actions">
+          <button class="btn btn-secondary btn-sm" id="btnExportar"       type="button">Exportar CSV</button>
+          <button class="btn btn-danger    btn-sm" id="btnLimparHistorico" type="button">Limpar histórico</button>
+        </div>
+      </div>
+
+      <div class="table-wrap">
+        <table class="table">
+          <thead>
+            <tr>
+              <th>Código</th>
+              <th>Data</th>
+              <th>Hora</th>
+              <th>Resultado</th>
+              <th>Prob.</th>
+              <th>Vigilante</th>
+              <th>Nome</th>
+              <th>CPF</th>
+              <th>Extras</th>
+            </tr>
+          </thead>
+          <tbody id="historicoBody"></tbody>
+        </table>
+        <p id="historicoVazio" class="empty-state">Nenhum sorteio registrado ainda.</p>
+      </div>
+    </section>
+
+    <!-- VIEW: CONFIGURAÇÕES -->
+    <section id="view-config" class="view" aria-label="Configurações" hidden>
+      <h2 class="view-title">Configurações</h2>
+      <div class="card config-card">
+        <label class="field-label" for="probInput">Probabilidade de revista</label>
+        <div class="prob-input-row">
+          <input type="number" id="probInput" min="0" max="100" step="0.1" value="10" />
+          <span class="prob-unit">%</span>
+        </div>
+        <input type="range" id="probRange" min="0" max="100" step="0.1" value="10" class="range" />
+        <div class="quick-buttons" role="group" aria-label="Valores rápidos">
+          <button class="chip" data-prob="1"  type="button">1%</button>
+          <button class="chip" data-prob="5"  type="button">5%</button>
+          <button class="chip" data-prob="10" type="button">10%</button>
+          <button class="chip" data-prob="15" type="button">15%</button>
+          <button class="chip" data-prob="20" type="button">20%</button>
+          <button class="chip" data-prob="30" type="button">30%</button>
+          <button class="chip" data-prob="50" type="button">50%</button>
+        </div>
+        <p class="config-hint">Configuração salva automaticamente. Valores entre 0% e 100%.</p>
+        <p id="configSaved" class="config-saved" hidden>✔ Configuração salva</p>
+      </div>
+    </section>
+
+    <!-- VIEW: SOBRE -->
+    <section id="view-sobre" class="view" aria-label="Sobre" hidden>
+      <h2 class="view-title">Sobre</h2>
+      <div class="card about-card">
+        <h3>Porto do Piauí — Controle de Acesso</h3>
+        <p>Sistema de Sorteio para Controle de Acesso e Revista de Visitantes.</p>
+        <p class="about-meta">Versão 2.0</p>
+        <ul class="about-list">
+          <li>Sorteio criptograficamente seguro (<code>crypto.getRandomValues()</code>).</li>
+          <li>Cada sorteio é independente e respeita a probabilidade configurada.</li>
+          <li>Histórico sincronizado em tempo real via Firebase Firestore.</li>
+          <li>Nome e CPF obrigatórios para rastreabilidade.</li>
+          <li>"Obrigar Revista" registrado com marcação especial no histórico.</li>
+          <li>Exportação CSV compatível com Excel PT-BR.</li>
+          <li>Funciona offline com localStorage como fallback.</li>
+        </ul>
+        <p class="about-credit">© 2026 Sávio Soluções Digitais — Todos os direitos reservados.</p>
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<!-- ================= MODAL DE IDENTIFICAÇÃO ================= -->
+<div id="identOverlay" class="ident-overlay" hidden aria-modal="true" role="dialog">
+  <div class="ident-modal ident-modal-lg">
+    <div class="ident-modal-head" id="identModalHead">
+      <span class="ident-modal-icon" id="identModalIcon"></span>
+      <div>
+        <div class="ident-modal-title" id="identModalTitle">REVISTA NECESSÁRIA</div>
+        <div class="ident-modal-sub" id="identModalSub">Preencha os dados da revista</div>
+      </div>
+    </div>
+
+    <div class="ident-modal-body">
+      <!-- Nome + documento -->
+      <div class="fgrid-2">
+        <div>
+          <div class="field-label-row">
+            <label for="identNome">Nome da pessoa revistada</label>
+            <span class="req">*</span>
+          </div>
+          <input type="text" id="identNome" placeholder="Nome completo" autocomplete="off" />
+          <div class="field-err" id="errNome">Informe o nome completo.</div>
+        </div>
+        <div>
+          <div class="field-label-row">
+            <label for="identCPF">RE ou CPF</label>
+            <span class="req">*</span>
+          </div>
+          <input type="text" id="identCPF" placeholder="CPF ou matrícula/RE" maxlength="20" autocomplete="off" />
+          <div class="field-err" id="errCPF">Informe o RE ou CPF.</div>
+        </div>
+      </div>
+
+      <!-- Local da Revista (botões grandes) -->
+      <div class="fgroup">
+        <div class="field-label-row"><label>Local da Revista</label><span class="req">*</span></div>
+        <div class="seg" id="segLocal" data-field="local">
+          <button type="button" data-val="Acesso pela catraca">Catraca</button>
+          <button type="button" data-val="Gate 1">Gate 1</button>
+          <button type="button" data-val="Gate 2">Gate 2</button>
+        </div>
+        <div class="field-err" id="errLocal">Selecione o local.</div>
+      </div>
+
+      <!-- Momento (botões grandes) -->
+      <div class="fgroup">
+        <div class="field-label-row"><label>Momento da revista</label><span class="req">*</span></div>
+        <div class="seg seg-2" id="segMomento" data-field="momento">
+          <button type="button" data-val="Entrada">Entrada</button>
+          <button type="button" data-val="Saída">Saída</button>
+        </div>
+        <div class="field-err" id="errMomento">Selecione o momento.</div>
+      </div>
+
+      <!-- Tipo de colaborador / perfil (botões grandes) -->
+      <div class="fgroup">
+        <div class="field-label-row"><label>Tipo de colaborador</label><span class="req">*</span></div>
+        <div class="seg" id="segColab" data-field="colaborador">
+          <button type="button" data-val="Funcionário Porto Piauí">Funcionário Porto Piauí</button>
+          <button type="button" data-val="Terceiros">Terceiros</button>
+          <button type="button" data-val="Transportadora">Transportadora</button>
+        </div>
+        <div class="field-err" id="errColab">Selecione o tipo.</div>
+      </div>
+
+      <!-- Empresa terceira (só quando Terceiro/Transportador) -->
+      <div class="fgroup" id="wrapEmpresa" hidden>
+        <div class="field-label-row"><label for="identEmpresa">Empresa terceira</label></div>
+        <input type="text" id="identEmpresa" placeholder="Nome da empresa prestadora" autocomplete="off" />
+      </div>
+
+      <!-- Selects compactos -->
+      <div class="fgrid-2">
+        <div>
+          <div class="field-label-row"><label for="selSexo">Sexo</label><span class="req">*</span></div>
+          <select id="selSexo">
+            <option value="">Selecione…</option>
+            <option>Masculino</option>
+            <option>Feminino</option>
+          </select>
+        </div>
+        <div>
+          <div class="field-label-row"><label for="selTipoRevista">Tipo de revista</label><span class="req">*</span></div>
+          <select id="selTipoRevista">
+            <option value="">Selecione…</option>
+            <option>Normal</option>
+            <option>Detalhada</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Quem foi revistado + veículo -->
+      <div class="fgroup">
+        <div class="field-label-row"><label>Quem foi revistado?</label><span class="req">*</span></div>
+        <div class="seg seg-2" id="segQuem" data-field="quem">
+          <button type="button" data-val="Somente pessoa">Somente pessoa</button>
+          <button type="button" data-val="Pessoa + Veículo">Pessoa + Veículo</button>
+        </div>
+        <div class="field-err" id="errQuem">Selecione uma opção.</div>
+      </div>
+
+      <!-- Veículo (só quando Pessoa + Veículo) -->
+      <div id="wrapVeiculo" hidden>
+        <div class="fgrid-2">
+          <div>
+            <div class="field-label-row"><label for="selPorte">Porte do veículo</label></div>
+            <select id="selPorte">
+              <option value="">Selecione…</option>
+              <option>Grande</option>
+              <option>Médio</option>
+              <option>Pequeno</option>
+            </select>
+          </div>
+          <div>
+            <div class="field-label-row"><label for="identPlaca">Placa</label></div>
+            <input type="text" id="identPlaca" placeholder="ABC-1D23" maxlength="8" autocomplete="off" style="text-transform:uppercase" />
+          </div>
+        </div>
+      </div>
+
+      <!-- Achado + comportamento -->
+      <div class="fgrid-2">
+        <div>
+          <div class="field-label-row"><label for="selAchado">Foi encontrado algo?</label><span class="req">*</span></div>
+          <select id="selAchado">
+            <option value="">Selecione…</option>
+            <option>Nada encontrado</option>
+            <option>Cigarros</option>
+            <option>Utensílios (Ex.: Facas de porte médio ou grande)</option>
+            <option>Arma branca de porte médio ou grande</option>
+            <option>Caixas/ sacolas com produtos / equipamentos</option>
+            <option>Não passou o detector de metal</option>
+            <option>O veículo não foi vistoriado (Evento da Natureza)</option>
+            <option>Má conduta (Ex.: Reclamação excessiva)</option>
+          </select>
+        </div>
+        <div>
+          <div class="field-label-row"><label for="selComportamento">Comportamento</label></div>
+          <select id="selComportamento">
+            <option value="">Selecione…</option>
+            <option>Sem alteração</option>
+            <option>Má conduta (Ex.: Reclamação excessiva)</option>
+            <option>Não aguardou a revista</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Observação (aparece se houver alteração) -->
+      <div class="fgroup">
+        <div class="field-label-row"><label for="identObs">Observação (se houver alteração)</label></div>
+        <input type="text" id="identObs" placeholder="Descreva a alteração, se houver" autocomplete="off" />
+      </div>
+    </div>
+
+    <div class="ident-modal-actions">
+      <button id="btnCancelarIdent" class="btn btn-ghost" type="button">Cancelar</button>
+      <button id="btnConfirmarIdent" class="btn btn-danger" type="button">Confirmar revista</button>
+    </div>
+  </div>
+</div>
+
+<!-- ================= MODAL DE PIN (CONFIGURAÇÕES) ================= -->
+<div id="pinOverlay" class="ident-overlay" hidden aria-modal="true" role="dialog">
+  <div class="ident-modal" style="width:min(380px,100%)">
+    <div class="ident-modal-head head-gold">
+      <span class="ident-modal-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>
+      </span>
+      <div>
+        <div class="ident-modal-title">Acesso restrito</div>
+        <div class="ident-modal-sub" id="pinModalSub">Informe o PIN do operador para abrir as Configurações</div>
+      </div>
+    </div>
+    <div class="ident-modal-body">
+      <div>
+        <div class="field-label-row">
+          <label for="pinInput">PIN</label>
+          <span class="req">obrigatório</span>
+        </div>
+        <input type="password" id="pinInput" placeholder="••••" inputmode="numeric"
+               autocomplete="off" maxlength="12" style="text-align:center;letter-spacing:6px;font-size:1.4rem" />
+        <div class="field-err" id="errPin">PIN incorreto.</div>
+      </div>
+    </div>
+    <div class="ident-modal-actions">
+      <button id="btnCancelarPin" class="btn btn-ghost" type="button">Cancelar</button>
+      <button id="btnConfirmarPin" class="btn" type="button">Desbloquear</button>
+    </div>
+  </div>
+</div>
+
+<!-- ================= OVERLAY DE RESULTADO ================= -->
+<div id="resultOverlay" class="result-overlay" hidden aria-live="assertive">
+  <div class="result-inner">
+    <div id="resultSorteando" class="result-sorteando">
+      <div class="spinner" aria-hidden="true"></div>
+      <p class="sorteando-text">SORTEANDO…</p>
+    </div>
+    <div id="resultFinal" class="result-final" hidden>
+      <div class="result-icon" id="resultIcon" aria-hidden="true"></div>
+      <div id="resultForcedTag" class="result-forced-tag" hidden>REVISTA OBRIGATÓRIA — OBRIGADO PELA COMPREENSÃO</div>
+      <div class="result-status" id="resultStatus">LIBERADO</div>
+      <div class="result-desc"   id="resultDesc">Acesso autorizado</div>
+      <div class="result-person" id="resultPerson" hidden></div>
+      <div class="result-code" id="resultCodeWrap">Código:&nbsp;<br /><span id="resultCode">PP-00000000-000000</span></div>
+      <button id="btnIdentificar" class="btn result-close" type="button" hidden>IDENTIFICAR E REGISTRAR</button>
+      <button id="btnFecharResultado" class="btn btn-light btn-sm result-close" type="button">Fechar</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* =============================================================
+ * SORTEADOR DE REVISTA — Porto do Piauí S/A
+ * single-file edition com Firebase Firestore
+ * Versão 2.0
+ * ============================================================= */
+(function () {
+  "use strict";
+
+  /* Ícones SVG (check / cruz) para o resultado — visual profissional */
+  var ICON_CHECK = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M8 12.5l2.5 2.5 5-5.5"/></svg>';
+  var ICON_CROSS = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="9" y1="9" x2="15" y2="15"/><line x1="15" y1="9" x2="9" y2="15"/></svg>';
+
+  /* ===========================================================
+   * CONFIGURAÇÃO FIREBASE
+   * Substitua pelos valores do seu projeto no Console Firebase.
+   * =========================================================== */
+  var FB_CONFIG = {
+    apiKey:            "AIzaSyAugjf_fRNH-jdnpRRgDDPTVGNqjHTn6_M",
+    authDomain:        "sorteador-9dfe2.firebaseapp.com",
+    projectId:         "sorteador-9dfe2",
+    storageBucket:     "sorteador-9dfe2.firebasestorage.app",
+    messagingSenderId: "706855384434",
+    appId:             "1:706855384434:web:585a10eb0cbd2a814d59eb"
+  };
+  var FB_COLLECTION = "sorteios_portopiaui"; // coleção no Firestore
+
+  /* ===========================================================
+   * PIN DE CONFIGURAÇÕES (camuflado)
+   * -----------------------------------------------------------
+   *  O PIN NÃO fica em texto puro aqui. Guardamos apenas o hash
+   *  SHA-256 (com salt). Na verificação, o PIN digitado é
+   *  transformado no mesmo hash e comparado — assim o número não
+   *  aparece legível no código.
+   *
+   *  >>> Para TROCAR o PIN, gere um novo hash. No console do
+   *  navegador (F12), cole e rode:
+   *     (async p => {
+   *       const b = new TextEncoder().encode("ppiaui_sr_v2" + p);
+   *       const h = await crypto.subtle.digest("SHA-256", b);
+   *       console.log([...new Uint8Array(h)].map(x=>x.toString(16).padStart(2,"0")).join(""));
+   *     })("SEU_NOVO_PIN");
+   *  Copie o resultado e substitua CONFIG_PIN_HASH abaixo.
+   * =========================================================== */
+  var CONFIG_PIN_SALT = "ppiaui_sr_v2";
+  var CONFIG_PIN_HASH = "1718c9a8ab4d3a46fa4c7541f97475320ab7a916e2a66dc2668406129c9e3abe";
+
+  // Gera o hash SHA-256 do PIN informado (mesmo esquema do hash guardado).
+  // Usa crypto.subtle quando disponível (contexto seguro: https/localhost/file).
+  function hashPin(pin) {
+    var texto = CONFIG_PIN_SALT + pin;
+    if (window.crypto && crypto.subtle && crypto.subtle.digest) {
+      var data = new TextEncoder().encode(texto);
+      return crypto.subtle.digest("SHA-256", data).then(function (buf) {
+        return Array.prototype.map.call(new Uint8Array(buf), function (x) {
+          return x.toString(16).padStart(2, "0");
+        }).join("");
+      });
+    }
+    // Fallback (contexto não-seguro): hash JS puro. Menos robusto, mas
+    // ainda evita o PIN em texto puro. O hash guardado abaixo é o SHA-256,
+    // então neste modo comparamos com o hash de fallback próprio.
+    return Promise.resolve(sha256Fallback(texto));
+  }
+
+  // SHA-256 em JS puro (usado só quando crypto.subtle não existe).
+  function sha256Fallback(ascii) {
+    function rightRotate(v, a) { return (v >>> a) | (v << (32 - a)); }
+    var mathPow = Math.pow, maxWord = mathPow(2, 32), result = "";
+    var words = [], asciiBitLength = ascii.length * 8;
+    var hash = sha256Fallback.h = sha256Fallback.h || [];
+    var k = sha256Fallback.k = sha256Fallback.k || [];
+    var primeCounter = k.length, isComposite = {};
+    for (var candidate = 2; primeCounter < 64; candidate++) {
+      if (!isComposite[candidate]) {
+        for (var i = 0; i < 313; i += candidate) isComposite[i] = candidate;
+        hash[primeCounter] = (mathPow(candidate, 0.5) * maxWord) | 0;
+        k[primeCounter++] = (mathPow(candidate, 1 / 3) * maxWord) | 0;
+      }
+    }
+    ascii += "\x80";
+    while (ascii.length % 64 - 56) ascii += "\x00";
+    for (i = 0; i < ascii.length; i++) {
+      var j = ascii.charCodeAt(i);
+      if (j >> 8) return "";
+      words[i >> 2] |= j << ((3 - i) % 4) * 8;
+    }
+    words[words.length] = (asciiBitLength / maxWord) | 0;
+    words[words.length] = asciiBitLength;
+    var h = hash.slice(0, 8);
+    for (j = 0; j < words.length;) {
+      var w = words.slice(j, j += 16), oldHash = h.slice(0);
+      for (i = 0; i < 64; i++) {
+        var w15 = w[i - 15], w2 = w[i - 2];
+        var a = h[0], e = h[4];
+        var temp1 = h[7] + (rightRotate(e, 6) ^ rightRotate(e, 11) ^ rightRotate(e, 25)) +
+          ((e & h[5]) ^ ((~e) & h[6])) + k[i] +
+          (w[i] = i < 16 ? w[i] : (w[i - 16] +
+            (rightRotate(w15, 7) ^ rightRotate(w15, 18) ^ (w15 >>> 3)) + w[i - 7] +
+            (rightRotate(w2, 17) ^ rightRotate(w2, 19) ^ (w2 >>> 10))) | 0);
+        var temp2 = (rightRotate(a, 2) ^ rightRotate(a, 13) ^ rightRotate(a, 22)) +
+          ((a & h[1]) ^ (a & h[2]) ^ (h[1] & h[2]));
+        h = [(temp1 + temp2) | 0].concat(h);
+        h[4] = (h[4] + temp1) | 0;
+      }
+      for (i = 0; i < 8; i++) h[i] = (h[i] + oldHash[i]) | 0;
+    }
+    for (i = 0; i < 8; i++) {
+      for (j = 3; j + 1; j--) {
+        var b = (h[i] >> (j * 8)) & 255;
+        result += ((b < 16) ? 0 : "") + b.toString(16);
+      }
+    }
+    return result;
+  }
+
+  /* ===========================================================
+   * 0. CONSTANTES
+   * =========================================================== */
+  var STORAGE_KEYS = {
+    config:    "pp_sr_config",
+    historico: "pp_sr_historico",
+    seq:       "pp_sr_sequencia",
+    vigilante: "pp_sr_vigilante"
+  };
+  var vigilanteAtual = ""; // nome do vigilante logado no turno
+  var DEFAULT_CONFIG   = { probabilidade: 10, somAtivado: true };
+  var TEMPO_SORTEANDO  = 1100; // ms
+  var TEMPO_RESULTADO  = 4000; // ms (um pouco mais longo para leitura)
+
+  /* ===========================================================
+   * 1. EVENT BUS
+   * =========================================================== */
+  var EventBus = (function () {
+    var listeners = {};
+    return {
+      on: function (ev, cb) {
+        if (!listeners[ev]) listeners[ev] = [];
+        listeners[ev].push(cb);
+      },
+      emit: function (ev, payload) {
+        (listeners[ev] || []).forEach(function (cb) {
+          try { cb(payload); } catch (e) { console.error("EventBus[" + ev + "]", e); }
+        });
+      }
+    };
+  })();
+
+  /* ===========================================================
+   * 2. FIREBASE — inicialização e persistência
+   * =========================================================== */
+  var db = null;
+  var fbOnline = false;
+
+  function iniciarFirebase() {
+    try {
+      // Verifica se a config foi preenchida
+      if (FB_CONFIG.apiKey === "COLE_SEU_API_KEY_AQUI") {
+        atualizarStatusFB("cfg", "Firebase não configurado — modo local");
+        return;
+      }
+      if (!firebase.apps.length) {
+        firebase.initializeApp(FB_CONFIG);
+      }
+      db = firebase.firestore();
+      // Habilita persistência offline
+      db.enablePersistence({ synchronizeTabs: true })
+        .catch(function (e) {
+          if (e.code !== "failed-precondition" && e.code !== "unimplemented") {
+            console.warn("Persistência offline:", e);
+          }
+        });
+
+      atualizarStatusFB("sync", "Conectando…");
+
+      // Testa conectividade e ativa a sincronização em tempo real.
+      db.collection(FB_COLLECTION).limit(1).get()
+        .then(function () {
+          fbOnline = true;
+          atualizarStatusFB("ok", "Firebase conectado");
+          iniciarSyncTempoReal();
+        })
+        .catch(function (e) {
+          console.warn("Firestore:", e);
+          atualizarStatusFB("err", "Modo offline (local)");
+        });
+    } catch (e) {
+      console.warn("Firebase init:", e);
+      atualizarStatusFB("err", "Erro Firebase — modo local");
+    }
+  }
+
+  /* Sincronização em tempo real: mantém o cache local espelhado com o
+     Firestore e atualiza dashboard/histórico automaticamente em todos
+     os dispositivos. */
+  var syncAtivo = false;
+  function iniciarSyncTempoReal() {
+    if (syncAtivo || !db) return;
+    syncAtivo = true;
+    db.collection(FB_COLLECTION)
+      .orderBy("timestamp", "asc")
+      .onSnapshot(function (snap) {
+        var lista = [];
+        snap.forEach(function (doc) {
+          var d = doc.data();
+          d.fbId = doc.id;
+          lista.push(d);
+        });
+        // Espelha no cache local (fonte usada pela UI).
+        Storage.gravar(STORAGE_KEYS.historico, lista);
+        atualizarStatusFB("ok", "Sincronizado");
+        // Atualiza as telas se estiverem visíveis.
+        renderEstatisticas();
+        renderHistorico();
+      }, function (err) {
+        console.warn("onSnapshot:", err);
+        atualizarStatusFB("err", "Falha na sincronização");
+      });
+  }
+
+  function atualizarStatusFB(estado, texto) {
+    var dot   = document.getElementById("fbDot");
+    var label = document.getElementById("fbLabel");
+    if (!dot || !label) return;
+    dot.className = "firebase-dot" + (estado ? " " + estado : "");
+    label.textContent = texto || "";
+  }
+
+  /** Salva o registro. Com Firebase, o cache local é atualizado pelo
+      listener em tempo real (onSnapshot). Sem Firebase, grava local. */
+  function salvarNoFirebase(registro) {
+    if (!db) {
+      // Sem banco: mantém tudo em localStorage.
+      salvarLocal(registro);
+      return;
+    }
+
+    // Se o sync em tempo real ainda não está ativo, grava local para não
+    // perder o registro; o onSnapshot depois reconcilia tudo.
+    if (!syncAtivo) salvarLocal(registro);
+
+    atualizarStatusFB("sync", "Salvando…");
+    db.collection(FB_COLLECTION).add(registro)
+      .then(function () {
+        fbOnline = true;
+        atualizarStatusFB("ok", "Sincronizado");
+        // O onSnapshot cuida de atualizar o cache local e as telas.
+      })
+      .catch(function (e) {
+        fbOnline = false;
+        // Falhou o envio: garante o registro no cache local.
+        salvarLocal(registro);
+        atualizarStatusFB("err", "Offline — salvo local");
+        console.warn("Firestore save:", e);
+      });
+  }
+
+  /* ===========================================================
+   * 3. ARMAZENAMENTO LOCAL (fallback / cache)
+   * =========================================================== */
+  var Storage = {
+    ler: function (chave, padrao) {
+      try {
+        var raw = localStorage.getItem(chave);
+        return raw === null ? padrao : JSON.parse(raw);
+      } catch (e) { return padrao; }
+    },
+    gravar: function (chave, valor) {
+      try { localStorage.setItem(chave, JSON.stringify(valor)); return true; }
+      catch (e) { return false; }
+    }
+  };
+
+  function salvarLocal(registro) {
+    var lista = carregarHistoricoLocal();
+    lista.push(registro);
+    Storage.gravar(STORAGE_KEYS.historico, lista);
+  }
+
+  function carregarHistoricoLocal() {
+    var lista = Storage.ler(STORAGE_KEYS.historico, []);
+    return Array.isArray(lista) ? lista : [];
+  }
+
+  /* ===========================================================
+   * 4. CONFIGURAÇÃO
+   * =========================================================== */
+  var configAtual = { probabilidade: DEFAULT_CONFIG.probabilidade, somAtivado: DEFAULT_CONFIG.somAtivado };
+
+  function carregarConfiguracao() {
+    var salva = Storage.ler(STORAGE_KEYS.config, null);
+    if (salva && typeof salva === "object") {
+      configAtual.probabilidade = sanitizarProb(salva.probabilidade);
+      configAtual.somAtivado    = salva.somAtivado !== false;
+    }
+    return configAtual;
+  }
+  function salvarConfiguracao() {
+    Storage.gravar(STORAGE_KEYS.config, configAtual);
+    EventBus.emit("config:alterada", { probabilidade: configAtual.probabilidade });
+  }
+  function sanitizarProb(v) {
+    var n = parseFloat(v);
+    if (isNaN(n)) n = DEFAULT_CONFIG.probabilidade;
+    return Math.max(0, Math.min(100, Math.round(n * 10) / 10));
+  }
+  function definirProbabilidade(v) {
+    configAtual.probabilidade = sanitizarProb(v);
+    salvarConfiguracao();
+  }
+
+  /* ===========================================================
+   * 5. RNG SEGURO
+   * =========================================================== */
+  function numeroAleatorio() {
+    var c = window.crypto || window.msCrypto;
+    if (c && c.getRandomValues) {
+      var b = new Uint32Array(1);
+      c.getRandomValues(b);
+      return b[0] / 4294967296;
+    }
+    return Math.random();
+  }
+
+  /* ===========================================================
+   * 6. CÓDIGO DO EVENTO — PP-AAAAMMDD-XXXXXX
+   * =========================================================== */
+  /* Identificador curto e estável do dispositivo (evita códigos iguais
+     entre a portaria e o PC admin, já que cada um tem sua sequência). */
+  function idDispositivo() {
+    var id = Storage.ler("pp_sr_device", null);
+    if (!id) {
+      id = Math.random().toString(36).slice(2, 5).toUpperCase();
+      Storage.gravar("pp_sr_device", id);
+    }
+    return id;
+  }
+
+  function gerarCodigo(d) {
+    var yyyymmdd = d.getFullYear() + p2(d.getMonth() + 1) + p2(d.getDate());
+    var est = Storage.ler(STORAGE_KEYS.seq, { dia: null, valor: 0 });
+    if (est.dia !== yyyymmdd) est = { dia: yyyymmdd, valor: 0 };
+    est.valor++;
+    Storage.gravar(STORAGE_KEYS.seq, est);
+    // Formato: PP-AAAAMMDD-XXXXXX-DEV (DEV distingue dispositivos)
+    return "PP-" + yyyymmdd + "-" + String(est.valor).padStart(6, "0") + "-" + idDispositivo();
+  }
+  function p2(n) { return String(n).padStart(2, "0"); }
+  function dataBR(d) { return p2(d.getDate()) + "/" + p2(d.getMonth() + 1) + "/" + d.getFullYear(); }
+  function horaBR(d) { return p2(d.getHours()) + ":" + p2(d.getMinutes()) + ":" + p2(d.getSeconds()); }
+  function dataISO(d) { return d.getFullYear() + "-" + p2(d.getMonth() + 1) + "-" + p2(d.getDate()); }
+
+  /* ===========================================================
+   * 7. VALIDAÇÃO DE CPF
+   * =========================================================== */
+  function validarCPF(cpf) {
+    cpf = cpf.replace(/\D/g, "");
+    if (cpf.length !== 11 || /^(\d)\1+$/.test(cpf)) return false;
+    var soma = 0, resto;
+    for (var i = 1; i <= 9; i++) soma += parseInt(cpf[i - 1]) * (11 - i);
+    resto = (soma * 10) % 11;
+    if (resto === 10 || resto === 11) resto = 0;
+    if (resto !== parseInt(cpf[9])) return false;
+    soma = 0;
+    for (var j = 1; j <= 10; j++) soma += parseInt(cpf[j - 1]) * (12 - j);
+    resto = (soma * 10) % 11;
+    if (resto === 10 || resto === 11) resto = 0;
+    return resto === parseInt(cpf[10]);
+  }
+
+  function mascaraCPF(v) {
+    v = v.replace(/\D/g, "").slice(0, 11);
+    if (v.length > 9) return v.replace(/(\d{3})(\d{3})(\d{3})(\d{1,2})/, "$1.$2.$3-$4");
+    if (v.length > 6) return v.replace(/(\d{3})(\d{3})(\d{1,3})/, "$1.$2.$3");
+    if (v.length > 3) return v.replace(/(\d{3})(\d{1,3})/, "$1.$2");
+    return v;
+  }
+
+  /* ===========================================================
+   * 8. NÚCLEO DO SORTEIO — em duas etapas
+   *
+   *  a) sortear(opcoes)  -> DECIDE o resultado (não grava, não
+   *     consome código). forcado=true => REVISTA garantida.
+   *  b) registrarSorteio(resultadoParcial) -> monta o registro
+   *     final (código + timestamp), grava no Firebase/local e
+   *     emite o evento. Só é chamado quando o registro deve
+   *     realmente ser persistido (LIBERADO, ou REVISTA já com
+   *     identificação preenchida).
+   *
+   *  Assim, uma REVISTA cancelada na tela de identificação NÃO
+   *  gera registro nem "gasta" um número sequencial.
+   * =========================================================== */
+  function sortear(opcoes) {
+    opcoes = opcoes || {};
+    var forcado = !!opcoes.forcado;
+    var prob    = forcado ? 100 : sanitizarProb(
+      opcoes.probabilidade != null ? opcoes.probabilidade : configAtual.probabilidade
+    );
+    var sorteado       = forcado ? 0 : numeroAleatorio();
+    var precisaRevista = forcado || sorteado < prob / 100;
+
+    return {
+      resultado:     precisaRevista ? "REVISTA" : "LIBERADO",
+      probabilidade: prob,
+      forcado:       forcado,
+      valorSorteado: forcado ? 0 : Math.round(sorteado * 1e6) / 1e6
+    };
+  }
+
+  function registrarSorteio(parcial, identificacao) {
+    var agora = new Date();
+    var registro = {
+      codigo:        gerarCodigo(agora),
+      timestamp:     agora.getTime(),
+      dataISO:       dataISO(agora),
+      data:          dataBR(agora),
+      hora:          horaBR(agora),
+      resultado:     parcial.resultado,
+      probabilidade: parcial.probabilidade,
+      forcado:       parcial.forcado,
+      valorSorteado: parcial.valorSorteado,
+      identificacao: identificacao || null,
+      vigilante:     vigilanteAtual || ""
+    };
+    salvarNoFirebase(registro);
+    EventBus.emit("sorteio:realizado", registro);
+    return registro;
+  }
+
+  /* Compatibilidade: API antiga (grava direto, opcionalmente com identificação). */
+  function realizarSorteio(opcoes) {
+    opcoes = opcoes || {};
+    var parcial = sortear(opcoes);
+    return registrarSorteio(parcial, opcoes.identificacao || null);
+  }
+
+  /* ===========================================================
+   * 9. HISTÓRICO — leitura (local + Firestore)
+   * Para listagem usamos o cache local (mais rápido).
+   * Firestore é a fonte de verdade para auditoria futura.
+   * =========================================================== */
+  function carregarHistorico() {
+    return carregarHistoricoLocal();
+  }
+
+  function limparHistorico() {
+    Storage.gravar(STORAGE_KEYS.historico, []);
+    EventBus.emit("historico:limpo");
+  }
+
+  function filtrarHistorico(lista, filtro) {
+    filtro = filtro || {};
+    return lista.filter(function (r) {
+      if (filtro.tipo && filtro.tipo !== "todos" && r.resultado !== filtro.tipo) return false;
+      if (filtro.inicio && r.dataISO < filtro.inicio) return false;
+      if (filtro.fim    && r.dataISO > filtro.fim)    return false;
+      return true;
+    });
+  }
+
+  /* ===========================================================
+   * 10. ESTATÍSTICAS — KPIs e distribuições (baseado no dashboard Excel)
+   * =========================================================== */
+  var DIAS_SEMANA = ["dom", "seg", "ter", "qua", "qui", "sex", "sáb"];
+
+  // Determina o turno pela hora (padrão do porto):
+  //  1º turno 06:00–13:59 · 2º turno 14:00–21:59 · 3º turno 22:00–05:59
+  function turnoDaHora(h) {
+    if (h >= 6 && h < 14)  return "1º TURNO";
+    if (h >= 14 && h < 22) return "2º TURNO";
+    return "3º TURNO";
+  }
+
+  // Conta ocorrências de um campo da identificação entre as revistas.
+  function contarPor(revistasArr, chave) {
+    var m = {};
+    revistasArr.forEach(function (r) {
+      var id = r.identificacao || {};
+      var v = id[chave];
+      if (v) m[v] = (m[v] || 0) + 1;
+    });
+    return m;
+  }
+
+  function calcularEstatisticas() {
+    var lista    = carregarHistorico();
+    var total    = lista.length;
+    var revistasArr = lista.filter(function (r) { return r.resultado === "REVISTA"; });
+    var revistas = revistasArr.length;
+
+    var porDiaSemana = {}, porTurno = {}, porMes = {}, porHora = {};
+    var diasUnicos = {};
+    DIAS_SEMANA.forEach(function (d) { porDiaSemana[d] = 0; });
+    ["1º TURNO", "2º TURNO", "3º TURNO"].forEach(function (t) { porTurno[t] = 0; });
+    for (var h = 0; h < 24; h++) porHora[h] = 0;
+
+    revistasArr.forEach(function (r) {
+      var d = new Date(r.timestamp);
+      porDiaSemana[DIAS_SEMANA[d.getDay()]] = (porDiaSemana[DIAS_SEMANA[d.getDay()]] || 0) + 1;
+      porTurno[turnoDaHora(d.getHours())] = (porTurno[turnoDaHora(d.getHours())] || 0) + 1;
+      var mesKey = p2(d.getMonth() + 1) + "/" + String(d.getFullYear()).slice(2);
+      porMes[mesKey] = (porMes[mesKey] || 0) + 1;
+      porHora[d.getHours()] = (porHora[d.getHours()] || 0) + 1;
+      diasUnicos[r.dataISO] = true;
+    });
+
+    lista.forEach(function (r) { diasUnicos[r.dataISO] = true; });
+    var qtdDias = Object.keys(diasUnicos).length;
+
+    var diaTop = "—", maxDia = -1;
+    DIAS_SEMANA.forEach(function (d) {
+      if (porDiaSemana[d] > maxDia) { maxDia = porDiaSemana[d]; diaTop = d; }
+    });
+    if (revistas === 0) diaTop = "—";
+
+    // Não conformidades = achados diferentes de "Nada encontrado"
+    var naoConformidades = revistasArr.filter(function (r) {
+      var a = (r.identificacao || {}).achado;
+      return a && a !== "Nada encontrado";
+    }).length;
+
+    return {
+      total: total,
+      liberados: total - revistas,
+      revistas:  revistas,
+      dias: qtdDias,
+      media: qtdDias > 0 ? revistas / qtdDias : 0,
+      diaTop: diaTop,
+      naoConformidades: naoConformidades,
+      percentualConfigurado: configAtual.probabilidade,
+      percentualReal: total > 0 ? (revistas / total) * 100 : 0,
+      porDiaSemana: porDiaSemana,
+      porTurno: porTurno,
+      porMes: porMes,
+      porHora: porHora,
+      // Dimensões do formulário (Excel)
+      porLocal:        contarPor(revistasArr, "local"),
+      porMomento:      contarPor(revistasArr, "momento"),
+      porColaborador:  contarPor(revistasArr, "colaborador"),
+      porSexo:         contarPor(revistasArr, "sexo"),
+      porTipoRevista:  contarPor(revistasArr, "tipoRevista"),
+      porQuem:         contarPor(revistasArr, "quem"),
+      porPorte:        contarPor(revistasArr, "porteVeiculo"),
+      porAchado:       contarPor(revistasArr, "achado"),
+      porComportamento: contarPor(revistasArr, "comportamento")
+    };
+  }
+
+  function fmtPct(v) {
+    return (Math.round(v * 100) / 100).toString().replace(".", ",") + "%";
+  }
+  function fmtNum(v) {
+    return (Math.round(v * 10) / 10).toString().replace(".", ",");
+  }
+
+  /* ===========================================================
+   * 11. EXPORTAR CSV
+   * =========================================================== */
+  function exportarCSV(listaOpc) {
+    var lista = listaOpc || carregarHistorico();
+    var sep   = ";";
+    var rows  = [["Codigo","Data","Hora","Resultado","Vigilante","Nome","RE/CPF","Local","Momento","Colaborador","Empresa","Sexo","Tipo Revista","Quem","Porte Veiculo","Placa","Achado","Comportamento","Observacao"].join(sep)];
+    lista.forEach(function (r) {
+      var id = r.identificacao || {};
+      rows.push([
+        csv(r.codigo), csv(r.data), csv(r.hora),
+        csv(r.resultado),
+        csv(r.vigilante || ""),
+        csv(id.nome || ""), csv(id.cpf || ""),
+        csv(id.local || ""), csv(id.momento || ""), csv(id.colaborador || ""),
+        csv(id.empresa || ""), csv(id.sexo || ""), csv(id.tipoRevista || ""),
+        csv(id.quem || ""), csv(id.porteVeiculo || ""), csv(id.placa || ""),
+        csv(id.achado || ""), csv(id.comportamento || ""), csv(id.observacao || "")
+      ].join(sep));
+    });
+    var blob = new Blob(["\uFEFF" + rows.join("\r\n")], { type: "text/csv;charset=utf-8;" });
+    var url  = URL.createObjectURL(blob);
+    var a    = document.createElement("a");
+    a.href = url; a.download = "sorteios-portopiaui-" + dataISO(new Date()) + ".csv";
+    document.body.appendChild(a); a.click();
+    document.body.removeChild(a);
+    setTimeout(function () { URL.revokeObjectURL(url); }, 1500);
+  }
+  function csv(v) {
+    var s = String(v == null ? "" : v);
+    return /[;\"\r\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+  }
+
+  /* Gera uma imagem PNG (dataURL) de um gráfico de barras a partir de
+     um array [{label, valor}]. Usada para embutir no Excel. */
+  function gerarImagemGrafico(titulo, dados, tipo) {
+    var W = 560, H = 320;
+    var canvas = document.createElement("canvas");
+    canvas.width = W; canvas.height = H;
+    var ctx = canvas.getContext("2d");
+
+    // Fundo
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(0, 0, W, H);
+
+    // Título
+    ctx.fillStyle = "#2c3f30";
+    ctx.font = "bold 16px Arial";
+    ctx.fillText(titulo, 16, 26);
+
+    var PALETA_IMG = ["#4e9bff","#ff8a3d","#a06bff","#2ec96b","#ff5d73","#ffcf3d","#22c3c3","#ff6bd6","#7ed321","#8a97a8"];
+    function escurecerHex(hex, amt) {
+      var n = parseInt(hex.slice(1), 16);
+      var r = Math.max(0, ((n >> 16) & 255) - amt);
+      var g = Math.max(0, ((n >> 8) & 255) - amt);
+      var b = Math.max(0, (n & 255) - amt);
+      return "rgb(" + r + "," + g + "," + b + ")";
+    }
+
+    // Modo rosca/pizza
+    if (tipo === "pie") {
+      var arr = dados.filter(function (d) { return d.valor > 0; });
+      var total = arr.reduce(function (a, d) { return a + d.valor; }, 0) || 1;
+      var cx = 130, cy = 180, R = 90, rin = 46, ang = -Math.PI / 2;
+      arr.forEach(function (d, i) {
+        var a1 = ang + (d.valor / total) * Math.PI * 2;
+        ctx.beginPath();
+        ctx.moveTo(cx, cy);
+        ctx.arc(cx, cy, R, ang, a1);
+        ctx.closePath();
+        ctx.fillStyle = PALETA_IMG[i % PALETA_IMG.length];
+        ctx.fill();
+        ang = a1;
+      });
+      // Furo central (rosca)
+      ctx.beginPath();
+      ctx.arc(cx, cy, rin, 0, Math.PI * 2);
+      ctx.fillStyle = "#ffffff";
+      ctx.fill();
+      ctx.fillStyle = "#2c3f30";
+      ctx.font = "bold 22px Arial";
+      ctx.textAlign = "center";
+      ctx.fillText(String(total), cx, cy + 2);
+      ctx.font = "10px Arial";
+      ctx.fillStyle = "#5a6b52";
+      ctx.fillText("total", cx, cy + 18);
+      ctx.textAlign = "left";
+      // Legenda
+      var lx = 250, ly = 60;
+      arr.forEach(function (d, i) {
+        var pct = Math.round((d.valor / total) * 100);
+        ctx.fillStyle = PALETA_IMG[i % PALETA_IMG.length];
+        ctx.fillRect(lx, ly - 10, 12, 12);
+        ctx.fillStyle = "#2c3f30";
+        ctx.font = "12px Arial";
+        var lbl = d.label.length > 24 ? d.label.slice(0, 22) + "…" : d.label;
+        ctx.fillText(lbl + "  (" + d.valor + " · " + pct + "%)", lx + 18, ly);
+        ly += 22;
+      });
+      return canvas.toDataURL("image/png");
+    }
+
+    var horizontal = (tipo === "h");
+    var max = Math.max.apply(null, dados.map(function (d) { return d.valor; }).concat([1]));
+    var padL = 16, padT = 46, padB = 40, padR = 16;
+    var verde1 = "#86b256", verde2 = "#6b9142";
+
+    if (horizontal) {
+      var rowH = Math.min(30, (H - padT - padB) / Math.max(dados.length, 1));
+      var labelW = 150;
+      dados.forEach(function (d, i) {
+        var y = padT + i * rowH;
+        var bw = Math.round(((d.valor / max) * (W - padL - labelW - padR - 40)));
+        ctx.fillStyle = "#5a6b52";
+        ctx.font = "12px Arial";
+        var lbl = d.label.length > 22 ? d.label.slice(0, 20) + "…" : d.label;
+        ctx.fillText(lbl, padL, y + rowH / 2 + 4);
+        var corH = PALETA_IMG[i % PALETA_IMG.length];
+        var grad = ctx.createLinearGradient(labelW, 0, labelW + bw, 0);
+        grad.addColorStop(0, escurecerHex(corH, 40)); grad.addColorStop(1, corH);
+        ctx.fillStyle = grad;
+        ctx.fillRect(padL + labelW, y + 4, Math.max(bw, 2), rowH - 10);
+        ctx.fillStyle = "#2c3f30";
+        ctx.font = "bold 12px Arial";
+        ctx.fillText(String(d.valor), padL + labelW + Math.max(bw, 2) + 6, y + rowH / 2 + 4);
+      });
+    } else {
+      var n = dados.length;
+      var gap = 10;
+      var barW = Math.max(8, (W - padL - padR - gap * (n - 1)) / n);
+      var chartH = H - padT - padB;
+      dados.forEach(function (d, i) {
+        var x = padL + i * (barW + gap);
+        var bh = Math.round((d.valor / max) * chartH);
+        var y = padT + chartH - bh;
+        var corV = PALETA_IMG[i % PALETA_IMG.length];
+        var grad = ctx.createLinearGradient(0, y, 0, y + bh);
+        grad.addColorStop(0, corV); grad.addColorStop(1, escurecerHex(corV, 40));
+        ctx.fillStyle = grad;
+        ctx.fillRect(x, y, barW, Math.max(bh, 2));
+        // Valor
+        ctx.fillStyle = "#2c3f30";
+        ctx.font = "bold 11px Arial";
+        ctx.textAlign = "center";
+        ctx.fillText(String(d.valor), x + barW / 2, y - 4);
+        // Rótulo
+        ctx.fillStyle = "#5a6b52";
+        ctx.font = "10px Arial";
+        var lbl2 = d.label.length > 10 ? d.label.slice(0, 9) + "…" : d.label;
+        ctx.save();
+        ctx.translate(x + barW / 2, H - padB + 12);
+        if (n > 8) { ctx.rotate(-Math.PI / 4); ctx.textAlign = "right"; }
+        ctx.fillText(lbl2, 0, 0);
+        ctx.restore();
+        ctx.textAlign = "left";
+      });
+    }
+    return canvas.toDataURL("image/png");
+  }
+
+  /* ===========================================================
+   * 11b. EXPORTAR DASHBOARD EM EXCEL (.xlsx) COM GRÁFICOS (imagens)
+   * -----------------------------------------------------------
+   *  Usa ExcelJS. Gera:
+   *   - Aba "Base": todos os registros
+   *   - Aba "Dashboard": KPIs + tabelas-resumo por dimensão
+   *   - Aba "Gráficos": imagens dos gráficos embutidas
+   * =========================================================== */
+  function exportarExcel() {
+    if (typeof ExcelJS === "undefined") {
+      alert("Biblioteca de Excel ainda não carregou. Verifique a conexão e tente de novo.");
+      return;
+    }
+    var lista = carregarHistorico();
+    if (lista.length === 0) { alert("Não há registros para exportar."); return; }
+    var s = calcularEstatisticas();
+
+    atualizarStatusFB("sync", "Gerando Excel…");
+    var wb = new ExcelJS.Workbook();
+    wb.creator = "Sávio Soluções Digitais";
+    wb.created = new Date();
+
+    /* ---------- Aba Base ---------- */
+    var base = wb.addWorksheet("Base");
+    var cols = ["Código","Data","Hora","Resultado","Vigilante","Nome","RE/CPF","Local",
+      "Momento","Colaborador","Empresa","Sexo","Tipo Revista","Quem","Porte Veículo",
+      "Placa","Achado","Comportamento","Observação"];
+    base.addRow(cols);
+    base.getRow(1).font = { bold: true, color: { argb: "FFFFFFFF" } };
+    base.getRow(1).fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF6B9142" } };
+    lista.forEach(function (r) {
+      var id = r.identificacao || {};
+      base.addRow([r.codigo, r.data, r.hora, r.resultado, r.vigilante || "",
+        id.nome || "", id.cpf || "", id.local || "", id.momento || "", id.colaborador || "",
+        id.empresa || "", id.sexo || "", id.tipoRevista || "", id.quem || "",
+        id.porteVeiculo || "", id.placa || "", id.achado || "", id.comportamento || "",
+        id.observacao || ""]);
+    });
+    base.columns.forEach(function (c) { c.width = 16; });
+
+    /* ---------- Aba Dashboard ---------- */
+    var dash = wb.addWorksheet("Dashboard");
+    dash.mergeCells("A1:D1");
+    dash.getCell("A1").value = "GESTÃO DAS REVISTAS — Porto do Piauí";
+    dash.getCell("A1").font = { bold: true, size: 16, color: { argb: "FF6B9142" } };
+
+    // KPIs
+    var kpis = [
+      ["Realizadas", s.revistas], ["Sorteios", s.total], ["Dias", s.dias],
+      ["Média/dia", Math.round(s.media * 100) / 100], ["Dia + revistado", s.diaTop],
+      ["Não conformidades", s.naoConformidades],
+      ["% Configurado", s.percentualConfigurado / 100],
+      ["% Real revistas", (Math.round(s.percentualReal * 100) / 100) / 100]
+    ];
+    dash.getCell("A3").value = "INDICADORES"; dash.getCell("A3").font = { bold: true };
+    kpis.forEach(function (kp, i) {
+      var row = 4 + i;
+      dash.getCell("A" + row).value = kp[0];
+      dash.getCell("B" + row).value = kp[1];
+      dash.getCell("A" + row).font = { bold: true };
+      if (/%/.test(kp[0])) dash.getCell("B" + row).numFmt = "0.0%";
+    });
+    dash.getColumn(1).width = 22; dash.getColumn(2).width = 14;
+
+    // Tabelas-resumo por dimensão (com gráfico nativo ao lado)
+    var linha = 4 + kpis.length + 2;
+    linha = escreverResumo(dash, linha, "Por local da revista", s.porLocal);
+    linha = escreverResumo(dash, linha, "Perfil do revistado", s.porColaborador);
+    linha = escreverResumo(dash, linha, "Por dia da semana", ordChaves(s.porDiaSemana, DIAS_SEMANA));
+    linha = escreverResumo(dash, linha, "Por turno", s.porTurno);
+    linha = escreverResumo(dash, linha, "Momento (entrada/saída)", s.porMomento);
+    linha = escreverResumo(dash, linha, "Sexo do revistado", s.porSexo);
+    linha = escreverResumo(dash, linha, "Tipo de revista", s.porTipoRevista);
+    linha = escreverResumo(dash, linha, "Quem foi revistado", s.porQuem);
+    linha = escreverResumo(dash, linha, "Não conformidades (achados)", s.porAchado);
+    linha = escreverResumo(dash, linha, "Distribuição por mês", mesesParaObj(s.porMes));
+
+    /* ---------- Aba Gráficos (imagens embutidas) ---------- */
+    var gsheet = wb.addWorksheet("Gráficos");
+    gsheet.getCell("A1").value = "GRÁFICOS — Gestão das Revistas";
+    gsheet.getCell("A1").font = { bold: true, size: 16, color: { argb: "FF6B9142" } };
+
+    var graficos = [
+      { t: "Por local da revista", d: mapaOrdenado(s.porLocal), tp: "pie" },
+      { t: "Perfil do revistado", d: mapaOrdenado(s.porColaborador), tp: "pie" },
+      { t: "Momento (entrada/saída)", d: mapaOrdenado(s.porMomento), tp: "pie" },
+      { t: "Sexo do revistado", d: mapaOrdenado(s.porSexo), tp: "pie" },
+      { t: "Tipo de revista", d: mapaOrdenado(s.porTipoRevista), tp: "pie" },
+      { t: "Quem foi revistado", d: mapaOrdenado(s.porQuem), tp: "pie" },
+      { t: "Não conformidades (achados)", d: mapaOrdenado(s.porAchado), tp: "pie" },
+      { t: "Por dia da semana", d: DIAS_SEMANA.map(function (x) { return { label: x, valor: s.porDiaSemana[x] || 0 }; }), tp: "v" },
+      { t: "Por turno", d: ["1º TURNO","2º TURNO","3º TURNO"].map(function (x) { return { label: x.replace(" TURNO","º"), valor: s.porTurno[x] || 0 }; }), tp: "v" },
+      { t: "Distribuição por mês", d: mesesParaObj(s.porMes), tp: "h" },
+      { t: "Distribuição por hora do dia", d: Object.keys(s.porHora).map(function (x) { return { label: p2(x) + "h", valor: s.porHora[x] }; }), tp: "v" }
+    ];
+
+    // Layout em 2 colunas; cada imagem ocupa ~17 linhas x 9 colunas.
+    var rowStart = 3, colBlocos = 2, imgLin = 17, imgCol = 9;
+    graficos.forEach(function (g, i) {
+      var col = i % colBlocos;
+      var row = Math.floor(i / colBlocos);
+      var dataUrl = gerarImagemGrafico(g.t, g.d, g.tp);
+      var imgId = wb.addImage({ base64: dataUrl, extension: "png" });
+      var c0 = col * imgCol;
+      var r0 = rowStart + row * imgLin;
+      gsheet.addImage(imgId, {
+        tl: { col: c0, row: r0 },
+        ext: { width: 560, height: 320 }
+      });
+    });
+
+    wb.xlsx.writeBuffer().then(function (buf) {
+      var blob = new Blob([buf], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+      var url = URL.createObjectURL(blob);
+      var a = document.createElement("a");
+      a.href = url; a.download = "dashboard-revistas-portopiaui-" + dataISO(new Date()) + ".xlsx";
+      document.body.appendChild(a); a.click(); document.body.removeChild(a);
+      setTimeout(function () { URL.revokeObjectURL(url); }, 1500);
+      atualizarStatusFB("ok", "Excel gerado");
+    }).catch(function (e) {
+      console.error("Excel:", e);
+      atualizarStatusFB("err", "Falha ao gerar Excel");
+      alert("Não foi possível gerar o Excel.");
+    });
+  }
+
+  // Escreve um bloco "título + tabela (rótulo/contagem)" e devolve a próxima linha.
+  function escreverResumo(ws, linha, titulo, obj) {
+    var arr = Array.isArray(obj) ? obj : Object.keys(obj).map(function (k) {
+      return { label: k, valor: obj[k] };
+    }).sort(function (a, b) { return b.valor - a.valor; });
+
+    ws.getCell("A" + linha).value = titulo;
+    ws.getCell("A" + linha).font = { bold: true, color: { argb: "FF6B9142" } };
+    linha++;
+    ws.getCell("A" + linha).value = "Rótulo";
+    ws.getCell("B" + linha).value = "Quantidade";
+    ws.getCell("A" + linha).font = { bold: true };
+    ws.getCell("B" + linha).font = { bold: true };
+    linha++;
+    arr.forEach(function (it) {
+      ws.getCell("A" + linha).value = it.label;
+      ws.getCell("B" + linha).value = it.valor;
+      linha++;
+    });
+    return linha + 2; // espaço entre blocos
+  }
+  function ordChaves(obj, ordem) {
+    return ordem.map(function (k) { return { label: k, valor: obj[k] || 0 }; });
+  }
+  function mesesParaObj(obj) {
+    return ordenarMeses(obj).map(function (m) { return { label: m.label, valor: m.valor }; });
+  }
+
+  /* ===========================================================
+   * 12. SOM (Web Audio API — sem arquivos externos)
+   * =========================================================== */
+  var Som = (function () {
+    var ctx = null;
+    var master = null;
+    function ctx_() {
+      if (!ctx) {
+        var AC = window.AudioContext || window.webkitAudioContext;
+        if (!AC) return null;
+        ctx = new AC();
+        // Ganho mestre — controla o volume geral (mais alto).
+        master = ctx.createGain();
+        master.gain.value = 2.2; // amplifica a saída
+        master.connect(ctx.destination);
+      }
+      if (ctx.state === "suspended") ctx.resume();
+      return ctx;
+    }
+    function nota(freq, t0, dur, tipo, vol) {
+      var osc = ctx.createOscillator(), g = ctx.createGain();
+      osc.type = tipo || "sine";
+      osc.frequency.setValueAtTime(freq, t0);
+      g.gain.setValueAtTime(0.0001, t0);
+      g.gain.exponentialRampToValueAtTime(vol || 0.4, t0 + 0.02);
+      g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+      osc.connect(g).connect(master);
+      osc.start(t0); osc.stop(t0 + dur + 0.02);
+    }
+    return {
+      liberado: function () {
+        if (!configAtual.somAtivado) return;
+        var c = ctx_(); if (!c) return; var t = c.currentTime;
+        // "Plin" positivo e alegre — dois toques agudos ascendentes
+        nota(1318.51, t, 0.10, "sine", 0.5);        // Mi agudo
+        nota(1975.53, t + 0.09, 0.22, "sine", 0.5); // Si agudo (brilho)
+      },
+      revista: function () {
+        if (!configAtual.somAtivado) return;
+        var c = ctx_(); if (!c) return; var t = c.currentTime;
+        // Som de NEGATIVA — um único tom grave e seco ("TON")
+        nota(140, t, 0.5, "sawtooth", 0.6);
+      },
+      obrigar: function () {
+        if (!configAtual.somAtivado) return;
+        var c = ctx_(); if (!c) return; var t = c.currentTime;
+        // Negativa obrigatória — um único tom, mais grave e longo
+        nota(110, t, 0.6, "sawtooth", 0.6);
+      },
+      tique: function () {
+        if (!configAtual.somAtivado) return;
+        var c = ctx_(); if (!c) return;
+        nota(880, c.currentTime, 0.05, "triangle", 0.2);
+      }
+    };
+  })();
+
+  /* ===========================================================
+   * 13. REFERÊNCIAS DA UI
+   * =========================================================== */
+  var $ = function (id) { return document.getElementById(id); };
+  var el = {};
+  var sorteioEmAndamento = false;
+  var timerVoltar = null;
+  var filtroAtual = { tipo: "todos", inicio: "", fim: "" };
+
+  function cachearElementos() {
+    el.sidebar         = $("sidebar");
+    el.menuToggle      = $("menuToggle");
+    el.overlayBackdrop = $("overlayBackdrop");
+    el.menuItems       = document.querySelectorAll(".menu-item");
+    el.views           = document.querySelectorAll(".view");
+    el.probLabel       = $("probLabel");
+    el.btnSorteio      = $("btnSorteio");
+    el.btnObrigar      = $("btnObrigar");
+    el.avisoArmado     = $("avisoArmado");
+
+    // Identificação / formulário de revista
+    el.identNome      = $("identNome");
+    el.identCPF       = $("identCPF");
+    el.errNome        = $("errNome");
+    el.errCPF         = $("errCPF");
+    el.identEmpresa   = $("identEmpresa");
+    el.identPlaca     = $("identPlaca");
+    el.identObs       = $("identObs");
+    el.selSexo        = $("selSexo");
+    el.selTipoRevista = $("selTipoRevista");
+    el.selPorte       = $("selPorte");
+    el.selAchado      = $("selAchado");
+    el.selComportamento = $("selComportamento");
+    el.segLocal       = $("segLocal");
+    el.segMomento     = $("segMomento");
+    el.segColab       = $("segColab");
+    el.segQuem        = $("segQuem");
+    el.errLocal       = $("errLocal");
+    el.errMomento     = $("errMomento");
+    el.errColab       = $("errColab");
+    el.errQuem        = $("errQuem");
+    el.wrapEmpresa    = $("wrapEmpresa");
+    el.wrapVeiculo    = $("wrapVeiculo");
+
+    // Modal de identificação
+    el.identOverlay     = $("identOverlay");
+    el.identModalHead   = $("identModalHead");
+    el.identModalIcon   = $("identModalIcon");
+    el.identModalTitle  = $("identModalTitle");
+    el.identModalSub    = $("identModalSub");
+    el.btnCancelarIdent = $("btnCancelarIdent");
+    el.btnConfirmarIdent = $("btnConfirmarIdent");
+
+    el.somToggle       = $("somToggle");
+    el.btnModoPortaria = $("btnModoPortaria");
+    // Login do vigilante
+    el.loginOverlay      = $("loginOverlay");
+    el.vigilanteNome     = $("vigilanteNome");
+    el.errVigilante      = $("errVigilante");
+    el.btnIniciarTurno   = $("btnIniciarTurno");
+    el.vigilanteAtual    = $("vigilanteAtual");
+    el.btnTrocarVigilante = $("btnTrocarVigilante");
+    el.btnTrocarVigilanteTela = $("btnTrocarVigilanteTela");
+    el.pinModalSub     = $("pinModalSub");
+
+    // Resultado
+    el.resultOverlay    = $("resultOverlay");
+    el.resultSorteando  = $("resultSorteando");
+    el.resultFinal      = $("resultFinal");
+    el.resultIcon       = $("resultIcon");
+    el.resultStatus     = $("resultStatus");
+    el.resultDesc       = $("resultDesc");
+    el.resultPerson     = $("resultPerson");
+    el.resultCode       = $("resultCode");
+    el.resultCodeWrap   = $("resultCodeWrap");
+    el.resultForcedTag  = $("resultForcedTag");
+    el.btnFecharResultado = $("btnFecharResultado");
+    el.btnIdentificar   = $("btnIdentificar");
+
+    // Dashboard
+    el.statLiberados = $("statLiberados");
+    el.statRevistas  = $("statRevistas");
+    el.statConfig    = $("statConfig");
+    el.statReal      = $("statReal");
+    el.statBar       = $("statBar");
+    el.kpiRealizadas = $("kpiRealizadas");
+    el.kpiSorteios   = $("kpiSorteios");
+    el.kpiDias       = $("kpiDias");
+    el.kpiMedia      = $("kpiMedia");
+    el.kpiDiaTop     = $("kpiDiaTop");
+    el.chartDiaSemana = $("chartDiaSemana");
+    el.chartTurno    = $("chartTurno");
+    el.chartMes      = $("chartMes");
+    el.chartHora     = $("chartHora");
+    el.chartLocal    = $("chartLocal");
+    el.chartColaborador = $("chartColaborador");
+    el.chartMomento  = $("chartMomento");
+    el.chartSexo     = $("chartSexo");
+    el.chartTipoRevista = $("chartTipoRevista");
+    el.chartQuem     = $("chartQuem");
+    el.chartAchado   = $("chartAchado");
+    el.btnExportarExcel = $("btnExportarExcel");
+    el.dashEmpty     = $("dashEmpty");
+
+    // Histórico
+    el.historicoBody      = $("historicoBody");
+    el.historicoVazio     = $("historicoVazio");
+    el.filtroInicio       = $("filtroInicio");
+    el.filtroFim          = $("filtroFim");
+    el.btnLimparFiltroData = $("btnLimparFiltroData");
+    el.chipsFiltro        = document.querySelectorAll(".chip[data-filter]");
+    el.btnExportar        = $("btnExportar");
+    el.btnLimparHistorico  = $("btnLimparHistorico");
+
+    // Config
+    el.probInput  = $("probInput");
+    el.probRange  = $("probRange");
+    el.chipsProb  = document.querySelectorAll(".chip[data-prob]");
+    el.configSaved = $("configSaved");
+
+    // PIN de configurações
+    el.pinOverlay      = $("pinOverlay");
+    el.pinInput        = $("pinInput");
+    el.errPin          = $("errPin");
+    el.btnConfirmarPin = $("btnConfirmarPin");
+    el.btnCancelarPin  = $("btnCancelarPin");
+  }
+
+  /* ===========================================================
+   * 14. NAVEGAÇÃO
+   * =========================================================== */
+  function mostrarView(nome) {
+    el.views.forEach(function (v) {
+      var ativa = v.id === "view-" + nome;
+      v.classList.toggle("is-active", ativa);
+      v.hidden = !ativa;
+    });
+    el.menuItems.forEach(function (m) {
+      m.classList.toggle("is-active", m.getAttribute("data-view") === nome);
+    });
+    if (nome === "dashboard") renderEstatisticas();
+    if (nome === "historico") renderHistorico();
+    fecharMenuMobile();
+  }
+  function abrirMenuMobile()  { el.sidebar.classList.add("is-open"); el.overlayBackdrop.hidden = false; }
+  function fecharMenuMobile() { el.sidebar.classList.remove("is-open"); el.overlayBackdrop.hidden = true; }
+
+  var configLiberado = false; // vira true após acertar o PIN nesta sessão
+  var pinAlvo = "config";     // o que o PIN vai destravar: "config" | "portaria"
+
+  function ligarNavegacao() {
+    el.menuItems.forEach(function (m) {
+      m.addEventListener("click", function () {
+        var destino = m.getAttribute("data-view");
+        // Configurações exigem PIN (uma vez por sessão)
+        if (destino === "config" && !configLiberado) {
+          abrirModalPin("config");
+          return;
+        }
+        mostrarView(destino);
+      });
+    });
+    el.menuToggle.addEventListener("click", abrirMenuMobile);
+    el.overlayBackdrop.addEventListener("click", fecharMenuMobile);
+  }
+
+  /* ===========================================================
+   * PIN — protege Configurações e o desbloqueio do Modo Portaria
+   * =========================================================== */
+  function abrirModalPin(alvo) {
+    pinAlvo = alvo || "config";
+    el.pinInput.value = "";
+    el.pinInput.classList.remove("invalid");
+    el.errPin.classList.remove("visible");
+    // Ajusta o texto conforme o alvo
+    if (el.pinModalSub) {
+      el.pinModalSub.textContent = (pinAlvo === "portaria")
+        ? "Informe o PIN para desbloquear o modo administrador"
+        : "Informe o PIN do operador para abrir as Configurações";
+    }
+    el.pinOverlay.hidden = false;
+    fecharMenuMobile();
+    setTimeout(function () { el.pinInput.focus(); }, 60);
+  }
+  function fecharModalPin() {
+    el.pinOverlay.hidden = true;
+    el.pinInput.value = "";
+  }
+  function confirmarPin() {
+    var digitado = el.pinInput.value;
+    hashPin(digitado).then(function (h) {
+      if (h === CONFIG_PIN_HASH) {
+        fecharModalPin();
+        if (pinAlvo === "portaria") {
+          desbloquearAdmin();
+        } else {
+          configLiberado = true;
+          mostrarView("config");
+        }
+      } else {
+        el.pinInput.classList.add("invalid");
+        el.errPin.classList.add("visible");
+        el.pinInput.value = "";
+        el.pinInput.focus();
+      }
+    }).catch(function () {
+      // Ambiente sem crypto.subtle (ex.: http sem localhost) — falha segura.
+      el.pinInput.classList.add("invalid");
+      el.errPin.classList.add("visible");
+      el.pinInput.value = "";
+    });
+  }
+
+  /* ===========================================================
+   * 15. VALIDAÇÃO DOS CAMPOS
+   * =========================================================== */
+  // Estado dos botões segmentados
+  var segSel = { local: "", momento: "", colaborador: "", quem: "" };
+
+  function ligarSegmentos() {
+    [el.segLocal, el.segMomento, el.segColab, el.segQuem].forEach(function (grp) {
+      if (!grp) return;
+      var campo = grp.getAttribute("data-field");
+      grp.querySelectorAll("button").forEach(function (btn) {
+        btn.addEventListener("click", function () {
+          grp.querySelectorAll("button").forEach(function (b) { b.classList.remove("sel"); });
+          btn.classList.add("sel");
+          segSel[campo] = btn.getAttribute("data-val");
+          grp.classList.remove("invalid");
+          // Campos dependentes
+          if (campo === "colaborador") {
+            var mostra = /Terceiro|Transportador/.test(segSel.colaborador);
+            el.wrapEmpresa.hidden = !mostra;
+          }
+          if (campo === "quem") {
+            el.wrapVeiculo.hidden = segSel.quem !== "Pessoa + Veículo";
+          }
+        });
+      });
+    });
+  }
+
+  function marca(elm, invalido, errElm) {
+    if (elm) elm.classList.toggle("invalid", invalido);
+    if (errElm) errElm.classList.toggle("visible", invalido);
+  }
+
+  function validarCampos() {
+    var ok = true, primeiro = null;
+    var nome = el.identNome.value.trim();
+    var doc  = el.identCPF.value.trim();
+
+    var nomeInv = nome.length < 3;
+    marca(el.identNome, nomeInv, el.errNome);
+    if (nomeInv) { ok = false; primeiro = primeiro || el.identNome; }
+
+    var docInv = doc.length < 3;
+    marca(el.identCPF, docInv, el.errCPF);
+    if (docInv) { ok = false; primeiro = primeiro || el.identCPF; }
+
+    // Segmentos obrigatórios
+    if (!segSel.local)    { el.segLocal.classList.add("invalid");   el.errLocal.classList.add("visible");   ok = false; }
+    if (!segSel.momento)  { el.segMomento.classList.add("invalid"); el.errMomento.classList.add("visible"); ok = false; }
+    if (!segSel.colaborador) { el.segColab.classList.add("invalid"); el.errColab.classList.add("visible"); ok = false; }
+    if (!segSel.quem)     { el.segQuem.classList.add("invalid");    el.errQuem.classList.add("visible");    ok = false; }
+
+    // Selects obrigatórios
+    var sexoInv = !el.selSexo.value;
+    marca(el.selSexo, sexoInv, null);
+    if (sexoInv) ok = false;
+    var trInv = !el.selTipoRevista.value;
+    marca(el.selTipoRevista, trInv, null);
+    if (trInv) ok = false;
+    var achInv = !el.selAchado.value;
+    marca(el.selAchado, achInv, null);
+    if (achInv) ok = false;
+
+    if (primeiro) primeiro.focus();
+    return ok;
+  }
+
+  function coletarIdentificacao() {
+    return {
+      nome:         el.identNome.value.trim(),
+      cpf:          el.identCPF.value.trim(),
+      local:        segSel.local,
+      momento:      segSel.momento,
+      colaborador:  segSel.colaborador,
+      empresa:      el.identEmpresa.value.trim(),
+      sexo:         el.selSexo.value,
+      tipoRevista:  el.selTipoRevista.value,
+      quem:         segSel.quem,
+      porteVeiculo: el.selPorte.value,
+      placa:        el.identPlaca.value.trim().toUpperCase(),
+      achado:       el.selAchado.value,
+      comportamento: el.selComportamento.value,
+      observacao:   el.identObs.value.trim()
+    };
+  }
+
+  function limparCamposIdent() {
+    ["identNome","identCPF","identEmpresa","identPlaca","identObs"].forEach(function (id) {
+      if (el[id]) el[id].value = "";
+    });
+    ["selSexo","selTipoRevista","selPorte","selAchado","selComportamento"].forEach(function (id) {
+      if (el[id]) el[id].value = "";
+    });
+    segSel = { local: "", momento: "", colaborador: "", quem: "" };
+    [el.segLocal, el.segMomento, el.segColab, el.segQuem].forEach(function (grp) {
+      if (!grp) return;
+      grp.classList.remove("invalid");
+      grp.querySelectorAll("button").forEach(function (b) { b.classList.remove("sel"); });
+    });
+    if (el.wrapEmpresa) el.wrapEmpresa.hidden = true;
+    if (el.wrapVeiculo) el.wrapVeiculo.hidden = true;
+    [el.identNome, el.identCPF, el.selSexo, el.selTipoRevista, el.selAchado].forEach(function (i) {
+      if (i) i.classList.remove("invalid");
+    });
+    [el.errNome, el.errCPF, el.errLocal, el.errMomento, el.errColab, el.errQuem].forEach(function (e) {
+      if (e) e.classList.remove("visible");
+    });
+  }
+
+  /* ===========================================================
+   * 16. FLUXO DE SORTEIO NA UI
+   * -----------------------------------------------------------
+   *  Fluxo por caso:
+   *   • OBRIGAR REVISTA (botão discreto):
+   *       - Não sorteia na hora. Apenas ARMA o sistema para que o
+   *         PRÓXIMO "Realizar Sorteio" caia em REVISTA garantida.
+   *         Clicar de novo desarma. Vale só para 1 sorteio.
+   *   • SORTEIO normal:
+   *       - Se ARMADO -> força REVISTA, abre modal de identificação
+   *         e desarma.
+   *       - Senão sorteia: LIBERADO passa direto; REVISTA abre modal.
+   * =========================================================== */
+  var sorteioPendente = null;   // resultado parcial aguardando identificação
+  var revistaArmada   = false;  // "obrigar revista" armado para o próximo sorteio
+
+  function dispararSorteioUI(forcado) {
+    if (sorteioEmAndamento) return;
+
+    // Botão "obrigar revista": alterna o estado armado, sem sortear.
+    if (forcado) {
+      revistaArmada = !revistaArmada;
+      atualizarAvisoArmado();
+      return;
+    }
+
+    // SORTEIO normal: anima e decide.
+    var armadoAgora = revistaArmada; // captura antes de desarmar
+    sorteioEmAndamento = true;
+    el.btnSorteio.disabled = true;
+    el.btnObrigar.disabled = true;
+    Som.tique();
+
+    el.resultOverlay.hidden = false;
+    el.resultOverlay.className = "result-overlay";
+    el.resultSorteando.hidden = false;
+    el.resultFinal.hidden     = true;
+
+    setTimeout(function () {
+      var parcial = sortear({ forcado: armadoAgora });
+
+      // Desarma após usar (vale só 1 sorteio).
+      if (armadoAgora) {
+        revistaArmada = false;
+        atualizarAvisoArmado();
+      }
+
+      if (parcial.resultado === "LIBERADO") {
+        // Libera direto — sem identificação.
+        var registro = registrarSorteio(parcial, null);
+        exibirResultado(registro);
+      } else {
+        // Deu REVISTA: mostra PRIMEIRO o alerta vermelho em tela cheia,
+        // com som forte. Só depois puxa o balão de identificação.
+        exibirAlertaRevista(parcial);
+      }
+    }, TEMPO_SORTEANDO);
+  }
+
+  /* Tela cheia vermelha "FAZER REVISTA" — antes de pedir os dados. */
+  function exibirAlertaRevista(parcial) {
+    sorteioPendente = parcial;
+
+    el.resultSorteando.hidden = true;
+    el.resultFinal.hidden     = false;
+
+    el.resultOverlay.hidden = false;
+    el.resultOverlay.className = "result-overlay result-red";
+
+    el.resultIcon.innerHTML     = ICON_CROSS;
+    el.resultStatus.textContent = "FAZER REVISTA";
+    el.resultDesc.textContent   = "Encaminhar para revista";
+    el.resultForcedTag.hidden   = !parcial.forcado;
+    el.resultPerson.hidden      = true;
+    el.resultCodeWrap.hidden    = true;   // ainda não registrou; sem código
+    el.btnFecharResultado.hidden = true;  // esconde "Fechar" normal
+
+    // Mostra o botão para prosseguir à identificação
+    el.btnIdentificar.hidden = false;
+
+    // Som de alerta (forte)
+    if (parcial.forcado) Som.obrigar(); else Som.revista();
+  }
+
+  // Mostra/oculta o aviso discreto de "revista armada" e reflete no botão.
+  function atualizarAvisoArmado() {
+    var portaria = document.body.classList.contains("modo-portaria");
+    // O aviso grande fica escondido no modo portaria (via CSS também).
+    if (el.avisoArmado) el.avisoArmado.hidden = !revistaArmada || portaria;
+    if (el.btnObrigar) {
+      // Os 3 pontinhos ficam sempre iguais; só destacam quando armado
+      // FORA do modo portaria (para o operador ver). Na portaria, nada muda.
+      el.btnObrigar.classList.toggle("is-armed", revistaArmada && !portaria);
+      el.btnObrigar.textContent = "•••";
+    }
+  }
+
+  function liberarBotoes() {
+    sorteioEmAndamento = false;
+    el.btnSorteio.disabled = false;
+    el.btnObrigar.disabled = false;
+  }
+
+  /* ---------- Modal de identificação ---------- */
+  function irParaIdentificacao() {
+    // Chamado pelo botão "IDENTIFICAR" na tela de alerta vermelha.
+    if (!sorteioPendente) return;
+    el.resultOverlay.hidden = true;
+    el.resultOverlay.className = "result-overlay";
+    el.btnIdentificar.hidden = true;
+    el.btnFecharResultado.hidden = false;
+    el.resultCodeWrap.hidden = false;
+    abrirModalIdentificacao(sorteioPendente);
+  }
+
+  function abrirModalIdentificacao(parcial) {
+    sorteioPendente = parcial;
+    limparCamposIdent();
+
+    var forcado = parcial.forcado;
+    el.identModalHead.classList.toggle("head-gold", forcado);
+    el.identModalIcon.innerHTML = ICON_CROSS;
+    el.identModalTitle.textContent = forcado ? "REVISTA OBRIGATÓRIA" : "REVISTA NECESSÁRIA";
+    el.identModalSub.textContent   = "Identifique a pessoa para registrar a revista.";
+
+    el.identOverlay.hidden = false;
+    setTimeout(function () { el.identNome.focus(); }, 60);
+  }
+
+  function fecharModalIdentificacao() {
+    el.identOverlay.hidden = true;
+    sorteioPendente = null;
+    limparCamposIdent();
+    liberarBotoes();
+  }
+
+  function confirmarIdentificacao() {
+    if (!sorteioPendente) return;
+    if (!validarCampos()) {
+      if (el.identNome.classList.contains("invalid")) el.identNome.focus();
+      else el.identCPF.focus();
+      return;
+    }
+    var identificacao = coletarIdentificacao();
+    var registro = registrarSorteio(sorteioPendente, identificacao);
+    sorteioPendente = null;
+    el.identOverlay.hidden = true;
+
+    // Tela final de confirmação da revista registrada (com os dados).
+    sorteioEmAndamento = true;
+    el.btnSorteio.disabled = true;
+    el.btnObrigar.disabled = true;
+    el.resultOverlay.hidden = false;
+    el.resultSorteando.hidden = true;
+    el.resultFinal.hidden = false;
+    exibirResultado(registro, true);
+  }
+
+  function exibirResultado(registro, skipSom) {
+    var liberado = registro.resultado === "LIBERADO";
+    var forcado  = registro.forcado;
+
+    el.resultSorteando.hidden = true;
+    el.resultFinal.hidden     = false;
+    el.btnFecharResultado.hidden = false;
+    el.btnIdentificar.hidden = true;
+    el.resultCodeWrap.hidden = false;
+
+    // Cores do overlay
+    el.resultOverlay.className = "result-overlay";
+    if (forcado)       el.resultOverlay.classList.add("result-gold");
+    else if (liberado) el.resultOverlay.classList.add("result-green");
+    else               el.resultOverlay.classList.add("result-red");
+
+    el.resultIcon.innerHTML = liberado ? ICON_CHECK : ICON_CROSS;
+    el.resultStatus.textContent = liberado ? "LIBERADO" : "REVISTA REGISTRADA";
+    el.resultDesc.textContent   = liberado ? "Acesso autorizado" : "Encaminhar para revista";
+
+    // Tag de obrigatório
+    el.resultForcedTag.hidden = !forcado;
+
+    // Pessoa
+    var id = registro.identificacao;
+    if (id && id.nome) {
+      el.resultPerson.hidden = false;
+      el.resultPerson.innerHTML =
+        "<strong>" + esc(id.nome) + "</strong><br />" +
+        "<span style='font-size:.85rem'>CPF: " + esc(id.cpf || "—") + "</span>";
+    } else {
+      el.resultPerson.hidden = true;
+    }
+
+    el.resultCode.textContent = registro.codigo;
+
+    if (!skipSom) {
+      if (forcado)       Som.obrigar();
+      else if (liberado) Som.liberado();
+      else               Som.revista();
+    }
+
+    clearTimeout(timerVoltar);
+    timerVoltar = setTimeout(fecharResultado, TEMPO_RESULTADO);
+  }
+
+  function fecharResultado() {
+    clearTimeout(timerVoltar);
+    el.resultOverlay.hidden = true;
+    el.resultOverlay.className = "result-overlay";
+    el.btnIdentificar.hidden = true;
+    el.btnFecharResultado.hidden = false;
+    el.resultCodeWrap.hidden = false;
+    sorteioPendente = null;
+    sorteioEmAndamento = false;
+    el.btnSorteio.disabled = false;
+    el.btnObrigar.disabled = false;
+    limparCamposIdent();
+  }
+
+  /* ===========================================================
+   * 17. CONFIGURAÇÃO
+   * =========================================================== */
+  function atualizarProbNaTela() {
+    var txt = String(configAtual.probabilidade).replace(".", ",") + "%";
+    if (el.probLabel)  el.probLabel.textContent  = txt;
+    if (el.statConfig) el.statConfig.textContent  = txt;
+    if (el.probInput)  el.probInput.value          = configAtual.probabilidade;
+    if (el.probRange)  el.probRange.value           = configAtual.probabilidade;
+    el.chipsProb.forEach(function (c) {
+      c.classList.toggle("is-active", parseFloat(c.getAttribute("data-prob")) === configAtual.probabilidade);
+    });
+  }
+  function feedbackSalvo() {
+    el.configSaved.hidden = false;
+    clearTimeout(feedbackSalvo._t);
+    feedbackSalvo._t = setTimeout(function () { el.configSaved.hidden = true; }, 1600);
+  }
+  function ligarConfiguracao() {
+    el.probInput.addEventListener("input", function () {
+      definirProbabilidade(el.probInput.value);
+      el.probRange.value = configAtual.probabilidade;
+      atualizarProbNaTela();
+      feedbackSalvo();
+    });
+    el.probRange.addEventListener("input", function () {
+      definirProbabilidade(el.probRange.value);
+      el.probInput.value = configAtual.probabilidade;
+      atualizarProbNaTela();
+      feedbackSalvo();
+    });
+    el.chipsProb.forEach(function (c) {
+      c.addEventListener("click", function () {
+        definirProbabilidade(c.getAttribute("data-prob"));
+        atualizarProbNaTela();
+        feedbackSalvo();
+      });
+    });
+    el.somToggle.addEventListener("change", function () {
+      configAtual.somAtivado = el.somToggle.checked;
+      salvarConfiguracao();
+    });
+  }
+
+  /* ===========================================================
+   * 18. HISTÓRICO E ESTATÍSTICAS
+   * =========================================================== */
+  function esc(s) {
+    return String(s == null ? "" : s)
+      .replace(/&/g, "&amp;").replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+  }
+
+  function renderHistorico() {
+    var lista    = carregarHistorico();
+    var filtrada = filtrarHistorico(lista, filtroAtual)
+      .slice().sort(function (a, b) { return b.timestamp - a.timestamp; });
+
+    el.historicoBody.innerHTML = "";
+
+    if (filtrada.length === 0) {
+      el.historicoVazio.hidden = false;
+      el.historicoVazio.textContent = lista.length === 0
+        ? "Nenhum sorteio registrado ainda."
+        : "Nenhum registro para os filtros selecionados.";
+      return;
+    }
+    el.historicoVazio.hidden = true;
+
+    el.historicoBody.innerHTML = filtrada.map(function (r) {
+      var bc  = r.resultado === "REVISTA" ? "badge-red" : "badge-green";
+      var id  = r.identificacao || {};
+      var ext = [id.local, id.momento, id.empresa].filter(Boolean).join(" · ") || "—";
+      var forcTag = r.forcado
+        ? ' <span class="badge badge-gold" title="Revista obrigatória">OBRIGATÓRIO</span>' : "";
+      return "<tr>" +
+        '<td class="code-cell">' + esc(r.codigo) + "</td>" +
+        "<td>" + esc(r.data)   + "</td>" +
+        "<td>" + esc(r.hora)   + "</td>" +
+        '<td><span class="badge ' + bc + '">' + esc(r.resultado) + "</span>" + forcTag + "</td>" +
+        "<td>" + esc(String(r.probabilidade).replace(".", ",")) + "%</td>" +
+        "<td>" + esc(r.vigilante || "—") + "</td>" +
+        "<td>" + esc(id.nome || "—") + "</td>" +
+        "<td>" + esc(id.cpf  || "—") + "</td>" +
+        "<td>" + esc(ext) + "</td>" +
+        "</tr>";
+    }).join("");
+  }
+
+  function renderEstatisticas() {
+    var s = calcularEstatisticas();
+
+    // KPIs
+    setTxt(el.kpiRealizadas, s.revistas);
+    setTxt(el.kpiSorteios, s.total);
+    setTxt(el.kpiDias, s.dias);
+    setTxt(el.kpiMedia, fmtNum(s.media));
+    setTxt(el.kpiDiaTop, s.diaTop);
+
+    // Comparativo
+    setTxt(el.statLiberados, s.liberados);
+    setTxt(el.statRevistas, s.revistas);
+    setTxt(el.statConfig, String(s.percentualConfigurado).replace(".", ",") + "%");
+    setTxt(el.statReal, fmtPct(s.percentualReal));
+    if (el.statBar) el.statBar.style.width = Math.min(100, s.percentualReal) + "%";
+
+    // Gráficos temporais/sequenciais → barras
+    desenharBarrasV(el.chartDiaSemana, DIAS_SEMANA.map(function (d) {
+      return { label: d, valor: s.porDiaSemana[d] || 0 };
+    }));
+    desenharBarrasV(el.chartTurno, ["1º TURNO", "2º TURNO", "3º TURNO"].map(function (t) {
+      return { label: t.replace(" TURNO", "º"), valor: s.porTurno[t] || 0 };
+    }));
+    desenharBarrasH(el.chartMes, ordenarMeses(s.porMes));
+    desenharBarrasV(el.chartHora, Object.keys(s.porHora).map(function (h) {
+      return { label: p2(h) + "h", valor: s.porHora[h] };
+    }), true);
+
+    // Proporções → gráficos de rosca (donut)
+    desenharDonut(el.chartLocal, mapaOrdenado(s.porLocal));
+    desenharDonut(el.chartColaborador, mapaOrdenado(s.porColaborador));
+    desenharDonut(el.chartMomento, mapaOrdenado(s.porMomento));
+    desenharDonut(el.chartSexo, mapaOrdenado(s.porSexo));
+    desenharDonut(el.chartTipoRevista, mapaOrdenado(s.porTipoRevista));
+    desenharDonut(el.chartQuem, mapaOrdenado(s.porQuem));
+    desenharDonut(el.chartAchado, mapaOrdenado(s.porAchado));
+  }
+
+  // Paleta para fatias de rosca (tons de verde + apoio)
+  var PALETA = ["#4e9bff", "#ff8a3d", "#a06bff", "#2ec96b", "#ff5d73",
+                "#ffcf3d", "#22c3c3", "#ff6bd6", "#7ed321", "#8a97a8"];
+
+  // Desenha um gráfico de rosca (donut) com legenda ao lado.
+  function desenharDonut(container, dados) {
+    if (!container) return;
+    dados = dados.filter(function (d) { return d.valor > 0; });
+    var total = dados.reduce(function (a, d) { return a + d.valor; }, 0);
+    if (total === 0) { container.innerHTML = '<p class="dash-empty" style="padding:10px">Sem dados.</p>'; return; }
+
+    var R = 70, r = 42, cx = 80, cy = 80, ang = -Math.PI / 2;
+    var paths = dados.map(function (d, i) {
+      var frac = d.valor / total;
+      var a0 = ang, a1 = ang + frac * Math.PI * 2;
+      ang = a1;
+      // Anel completo se for fatia única de 100%
+      if (frac >= 0.9999) {
+        return '<circle cx="' + cx + '" cy="' + cy + '" r="' + ((R + r) / 2) +
+          '" fill="none" stroke="' + PALETA[i % PALETA.length] + '" stroke-width="' + (R - r) + '"/>';
+      }
+      var x0 = cx + R * Math.cos(a0), y0 = cy + R * Math.sin(a0);
+      var x1 = cx + R * Math.cos(a1), y1 = cy + R * Math.sin(a1);
+      var xi1 = cx + r * Math.cos(a1), yi1 = cy + r * Math.sin(a1);
+      var xi0 = cx + r * Math.cos(a0), yi0 = cy + r * Math.sin(a0);
+      var large = (a1 - a0) > Math.PI ? 1 : 0;
+      return '<path d="M' + x0 + ' ' + y0 +
+        ' A' + R + ' ' + R + ' 0 ' + large + ' 1 ' + x1 + ' ' + y1 +
+        ' L' + xi1 + ' ' + yi1 +
+        ' A' + r + ' ' + r + ' 0 ' + large + ' 0 ' + xi0 + ' ' + yi0 +
+        ' Z" fill="' + PALETA[i % PALETA.length] + '"/>';
+    }).join("");
+
+    var legenda = dados.map(function (d, i) {
+      var pct = Math.round((d.valor / total) * 100);
+      return '<div class="donut-leg-item">' +
+        '<span class="donut-dot" style="background:' + PALETA[i % PALETA.length] + '"></span>' +
+        '<span class="donut-leg-label">' + esc(d.label) + '</span>' +
+        '<span class="donut-leg-val">' + d.valor + ' · ' + pct + '%</span>' +
+      '</div>';
+    }).join("");
+
+    container.innerHTML =
+      '<div class="donut-wrap">' +
+        '<svg viewBox="0 0 160 160" class="donut-svg">' + paths +
+          '<text x="80" y="76" text-anchor="middle" class="donut-total">' + total + '</text>' +
+          '<text x="80" y="94" text-anchor="middle" class="donut-total-lbl">total</text>' +
+        '</svg>' +
+        '<div class="donut-legend">' + legenda + '</div>' +
+      '</div>';
+  }
+
+  // Converte um objeto {rótulo:contagem} em array ordenado desc.
+  function mapaOrdenado(obj) {
+    return Object.keys(obj).map(function (k) {
+      return { label: encurtar(k), valor: obj[k] };
+    }).sort(function (a, b) { return b.valor - a.valor; });
+  }
+  // Encurta rótulos muito longos para caber no gráfico.
+  function encurtar(s) {
+    s = String(s);
+    return s.length > 26 ? s.slice(0, 24) + "…" : s;
+  }
+
+  function setTxt(elm, v) { if (elm) elm.textContent = v; }
+
+  // Ordena meses no formato MM/AA cronologicamente.
+  function ordenarMeses(obj) {
+    return Object.keys(obj).map(function (k) {
+      var p = k.split("/");
+      return { label: k, valor: obj[k], ord: parseInt("20" + p[1]) * 100 + parseInt(p[0]) };
+    }).sort(function (a, b) { return a.ord - b.ord; });
+  }
+
+  // Desenha barras verticais. compacto=true reduz rótulos (p/ horas).
+  function desenharBarrasV(container, dados, compacto) {
+    if (!container) return;
+    var max = Math.max.apply(null, dados.map(function (d) { return d.valor; }).concat([1]));
+    container.innerHTML = dados.map(function (d, i) {
+      var h = max > 0 ? Math.round((d.valor / max) * 100) : 0;
+      var lbl = compacto && d.valor === 0 ? "" : (d.valor || "");
+      var cor = PALETA[i % PALETA.length];
+      return '<div class="cbar">' +
+        '<div class="cbar-fill" style="height:' + h + '%;background:linear-gradient(180deg,' + cor + ',' + escurecer(cor) + ')">' +
+          (lbl !== "" ? '<span class="cbar-val">' + lbl + '</span>' : '') +
+        '</div>' +
+        '<span class="cbar-label">' + esc(d.label) + '</span>' +
+      '</div>';
+    }).join("");
+  }
+
+  // Escurece uma cor hex ~20% (para o gradiente das barras).
+  function escurecer(hex) {
+    var n = parseInt(hex.slice(1), 16);
+    var r = Math.max(0, ((n >> 16) & 255) - 40);
+    var g = Math.max(0, ((n >> 8) & 255) - 40);
+    var b = Math.max(0, (n & 255) - 40);
+    return "rgb(" + r + "," + g + "," + b + ")";
+  }
+
+  // Desenha barras horizontais (por mês).
+  function desenharBarrasH(container, dados) {
+    if (!container) return;
+    if (dados.length === 0) { container.innerHTML = '<p class="dash-empty" style="padding:10px">Sem dados.</p>'; return; }
+    var max = Math.max.apply(null, dados.map(function (d) { return d.valor; }).concat([1]));
+    container.innerHTML = dados.map(function (d, i) {
+      var w = max > 0 ? Math.round((d.valor / max) * 100) : 0;
+      var cor = PALETA[i % PALETA.length];
+      return '<div class="hbar">' +
+        '<span class="hbar-label">' + esc(d.label) + '</span>' +
+        '<div class="hbar-track"><div class="hbar-fill" style="width:' + w + '%;background:linear-gradient(90deg,' + escurecer(cor) + ',' + cor + ')"></div></div>' +
+        '<span class="hbar-val">' + d.valor + '</span>' +
+      '</div>';
+    }).join("");
+  }
+
+  function ligarHistorico() {
+    el.chipsFiltro.forEach(function (c) {
+      c.addEventListener("click", function () {
+        el.chipsFiltro.forEach(function (x) { x.classList.remove("is-active"); });
+        c.classList.add("is-active");
+        filtroAtual.tipo = c.getAttribute("data-filter");
+        renderHistorico();
+      });
+    });
+    el.filtroInicio.addEventListener("change", function () { filtroAtual.inicio = el.filtroInicio.value; renderHistorico(); });
+    el.filtroFim.addEventListener("change",    function () { filtroAtual.fim    = el.filtroFim.value;    renderHistorico(); });
+    el.btnLimparFiltroData.addEventListener("click", function () {
+      filtroAtual.inicio = filtroAtual.fim = "";
+      el.filtroInicio.value = el.filtroFim.value = "";
+      renderHistorico();
+    });
+    el.btnExportar.addEventListener("click", function () {
+      if (carregarHistorico().length === 0) { alert("Não há registros para exportar."); return; }
+      exportarCSV();
+    });
+    if (el.btnExportarExcel) {
+      el.btnExportarExcel.addEventListener("click", exportarExcel);
+    }
+    el.btnLimparHistorico.addEventListener("click", function () {
+      var lista = carregarHistorico();
+      if (lista.length === 0) { alert("O histórico já está vazio."); return; }
+      var exp = confirm("Deseja EXPORTAR o histórico antes de apagar?\n\nOK = Exportar e depois apagar\nCancelar = Não exportar");
+      if (exp) exportarCSV(lista);
+
+      if (db && syncAtivo) {
+        // Banco ativo: apagar só o local não adianta (o sync restaura).
+        if (!confirm("ATENÇÃO: isto vai APAGAR o histórico do BANCO (Firebase),\nafetando TODOS os dispositivos. Esta ação é irreversível.\n\nConfirma a exclusão?")) return;
+        apagarHistoricoFirebase(lista);
+      } else {
+        if (!confirm("Confirma a exclusão do histórico local?")) return;
+        limparHistorico();
+        renderHistorico();
+        renderEstatisticas();
+      }
+    });
+  }
+
+  /* Apaga todos os documentos da coleção no Firestore (em lotes de 400). */
+  function apagarHistoricoFirebase(lista) {
+    atualizarStatusFB("sync", "Apagando…");
+    var ids = lista.map(function (r) { return r.fbId; }).filter(Boolean);
+    if (ids.length === 0) {
+      limparHistorico(); renderHistorico(); renderEstatisticas();
+      atualizarStatusFB("ok", "Sincronizado");
+      return;
+    }
+    // Divide em blocos (limite de 500 operações por batch no Firestore).
+    var blocos = [];
+    for (var i = 0; i < ids.length; i += 400) blocos.push(ids.slice(i, i + 400));
+
+    var promessas = blocos.map(function (bloco) {
+      var batch = db.batch();
+      bloco.forEach(function (id) {
+        batch.delete(db.collection(FB_COLLECTION).doc(id));
+      });
+      return batch.commit();
+    });
+
+    Promise.all(promessas)
+      .then(function () {
+        atualizarStatusFB("ok", "Histórico apagado");
+      })
+      .catch(function (e) {
+        console.warn("Falha ao apagar:", e);
+        atualizarStatusFB("err", "Falha ao apagar");
+        alert("Não foi possível apagar do banco. Tente novamente.");
+      });
+  }
+
+  /* ===========================================================
+   * 19. MODO PORTARIA (padrão TRAVADO)
+   * -----------------------------------------------------------
+   *  O sistema abre travado: só a tela de sortear. O porteiro não
+   *  acessa menu, dashboard, histórico nem configurações.
+   *  Para destravar (modo admin), clique 3x na logo e informe o PIN.
+   * =========================================================== */
+  function bloquearPortaria() {
+    document.body.classList.add("modo-portaria");
+    mostrarView("sorteador");
+    atualizarAvisoArmado(); // garante que nada revele o armamento
+    var e = document.documentElement;
+    if (e.requestFullscreen && !document.fullscreenElement) {
+      e.requestFullscreen().catch(function () {});
+    }
+  }
+  function desbloquearAdmin() {
+    document.body.classList.remove("modo-portaria");
+    atualizarAvisoArmado(); // restaura o aviso normal para o operador
+    mostrarView("sorteador");
+    // Mantém tela cheia; o admin pode sair manualmente se quiser.
+  }
+  function ligarModoPortaria() {
+    // Botão na sidebar volta a travar (bloquear) o sistema.
+    el.btnModoPortaria.addEventListener("click", bloquearPortaria);
+    // Botão antigo "sair da portaria" agora pede PIN para destravar.
+    if (el.btnSairPortaria) {
+      el.btnSairPortaria.addEventListener("click", function () {
+        abrirModalPin("portaria");
+      });
+    }
+  }
+
+  /* Detecta 3 cliques rápidos na logo para pedir o PIN de admin. */
+  var cliquesLogo = 0, timerCliques = null;
+  function ligarDesbloqueioLogo() {
+    var alvos = document.querySelectorAll(".header-logo, .brand-logo, .brand");
+    alvos.forEach(function (logo) {
+      logo.style.cursor = "default";
+      logo.addEventListener("click", function () {
+        // Só faz sentido quando está travado.
+        if (!document.body.classList.contains("modo-portaria")) return;
+        cliquesLogo++;
+        clearTimeout(timerCliques);
+        timerCliques = setTimeout(function () { cliquesLogo = 0; }, 800);
+        if (cliquesLogo >= 3) {
+          cliquesLogo = 0;
+          clearTimeout(timerCliques);
+          abrirModalPin("portaria");
+        }
+      });
+    });
+  }
+
+  /* ===========================================================
+   * 20. TECLADO
+   * =========================================================== */
+  function ligarTeclado() {
+    document.addEventListener("keydown", function (ev) {
+      var tag = (ev.target && ev.target.tagName) || "";
+      var editando = /^(INPUT|TEXTAREA|SELECT)$/.test(tag);
+
+      // Modal de PIN aberto: Enter confirma, Esc cancela.
+      if (!el.pinOverlay.hidden) {
+        if (ev.key === "Enter") { ev.preventDefault(); confirmarPin(); }
+        else if (ev.key === "Escape") { ev.preventDefault(); fecharModalPin(); }
+        return;
+      }
+
+      // Modal de identificação aberto: Enter confirma, Esc cancela.
+      if (!el.identOverlay.hidden) {
+        if (ev.key === "Enter") { ev.preventDefault(); confirmarIdentificacao(); }
+        else if (ev.key === "Escape") { ev.preventDefault(); fecharModalIdentificacao(); }
+        return;
+      }
+
+      // Tela de alerta vermelha (aguardando identificação): Enter avança.
+      if (!el.resultOverlay.hidden && !el.btnIdentificar.hidden) {
+        if (ev.key === "Enter") { ev.preventDefault(); irParaIdentificacao(); }
+        return;
+      }
+
+      if ((ev.code === "Space" || ev.key === " " || ev.key === "Enter") && !editando) {
+        ev.preventDefault();
+        // Não sortear enquanto uma tela de resultado/alerta estiver aberta.
+        if (!el.resultOverlay.hidden) return;
+        if ($("view-sorteador").classList.contains("is-active")) dispararSorteioUI(false);
+      } else if (ev.key === "Escape") {
+        // ESC só fecha a tela de resultado. NUNCA sai do modo portaria
+        // (o desbloqueio é só via 3 cliques na logo + PIN).
+        if (!el.resultOverlay.hidden) fecharResultado();
+      }
+    });
+  }
+
+  /* ===========================================================
+   * 21. MÁSCARA CPF
+   * =========================================================== */
+  function ligarMascaras() {
+    // Campo agora aceita RE (matrícula) OU CPF, então não aplicamos
+    // máscara automática de CPF para não atrapalhar matrículas.
+  }
+
+  /* ===========================================================
+   * 21b. LOGIN DO VIGILANTE (controle de quem opera)
+   * -----------------------------------------------------------
+   *  O sistema só inicia após o vigilante informar o nome.
+   *  O nome fica salvo na sessão (persiste ao recarregar) até
+   *  que se clique em "Trocar vigilante" (troca de turno).
+   *  O nome é gravado em cada registro para rastreabilidade.
+   * =========================================================== */
+  function carregarVigilante() {
+    vigilanteAtual = Storage.ler(STORAGE_KEYS.vigilante, "") || "";
+    atualizarVigilanteNaTela();
+  }
+  function atualizarVigilanteNaTela() {
+    if (el.vigilanteAtual) el.vigilanteAtual.textContent = vigilanteAtual || "—";
+    // Mostra/oculta o link "trocar vigilante" da tela principal.
+    document.body.classList.toggle("tem-vigilante", !!(vigilanteAtual && vigilanteAtual.trim()));
+  }
+  function exigirLoginSeNecessario() {
+    if (vigilanteAtual && vigilanteAtual.trim().length >= 3) {
+      el.loginOverlay.hidden = true;
+      return true;
+    }
+    abrirLogin();
+    return false;
+  }
+  function abrirLogin() {
+    el.vigilanteNome.value = vigilanteAtual || "";
+    el.vigilanteNome.classList.remove("invalid");
+    el.errVigilante.classList.remove("visible");
+    el.loginOverlay.hidden = false;
+    setTimeout(function () { el.vigilanteNome.focus(); }, 80);
+  }
+  function confirmarLogin() {
+    var nome = el.vigilanteNome.value.trim();
+    if (nome.length < 3) {
+      el.vigilanteNome.classList.add("invalid");
+      el.errVigilante.classList.add("visible");
+      el.vigilanteNome.focus();
+      return;
+    }
+    vigilanteAtual = nome;
+    Storage.gravar(STORAGE_KEYS.vigilante, vigilanteAtual);
+    atualizarVigilanteNaTela();
+    el.loginOverlay.hidden = true;
+    // Após o login, o sistema entra travado no modo portaria.
+    document.body.classList.add("modo-portaria");
+    mostrarView("sorteador");
+    atualizarAvisoArmado();
+  }
+  function trocarVigilante() {
+    // Troca de turno: limpa o nome e volta ao login.
+    if (!confirm("Encerrar o turno de " + (vigilanteAtual || "—") + " e trocar de vigilante?")) return;
+    vigilanteAtual = "";
+    Storage.gravar(STORAGE_KEYS.vigilante, "");
+    atualizarVigilanteNaTela();
+    abrirLogin();
+  }
+  function ligarLoginVigilante() {
+    el.btnIniciarTurno.addEventListener("click", confirmarLogin);
+    el.vigilanteNome.addEventListener("keydown", function (ev) {
+      if (ev.key === "Enter") { ev.preventDefault(); confirmarLogin(); }
+    });
+    if (el.btnTrocarVigilante) el.btnTrocarVigilante.addEventListener("click", trocarVigilante);
+    if (el.btnTrocarVigilanteTela) el.btnTrocarVigilanteTela.addEventListener("click", trocarVigilante);
+  }
+
+  /* ===========================================================
+   * 22. INICIALIZAÇÃO
+   * =========================================================== */
+  function init() {
+    cachearElementos();
+    carregarConfiguracao();
+    iniciarFirebase();
+
+    el.somToggle.checked = configAtual.somAtivado;
+    atualizarProbNaTela();
+
+    ligarNavegacao();
+    ligarConfiguracao();
+    ligarHistorico();
+    ligarModoPortaria();
+    ligarDesbloqueioLogo();
+    ligarTeclado();
+    ligarMascaras();
+    ligarLoginVigilante();
+    carregarVigilante();
+
+    el.btnSorteio.addEventListener("click", function () { dispararSorteioUI(false); });
+    el.btnObrigar.addEventListener("click", function () { dispararSorteioUI(true);  });
+    el.btnFecharResultado.addEventListener("click", fecharResultado);
+    el.btnIdentificar.addEventListener("click", irParaIdentificacao);
+
+    // Modal de identificação
+    el.btnConfirmarIdent.addEventListener("click", confirmarIdentificacao);
+    el.btnCancelarIdent.addEventListener("click", fecharModalIdentificacao);
+
+    // Modal de PIN
+    el.btnConfirmarPin.addEventListener("click", confirmarPin);
+    el.btnCancelarPin.addEventListener("click", fecharModalPin);
+
+    ligarSegmentos();
+
+    EventBus.on("config:alterada", atualizarProbNaTela);
+    EventBus.on("sorteio:realizado", function () {
+      renderEstatisticas();
+      renderHistorico();
+    });
+
+    renderEstatisticas();
+    renderHistorico();
+
+    // Inicia SEMPRE travado no modo portaria (só a tela de sortear).
+    // Para destravar: 3 cliques na logo + PIN.
+    document.body.classList.add("modo-portaria");
+    mostrarView("sorteador");
+    atualizarAvisoArmado();
+
+    // Exige o login do vigilante antes de liberar o uso.
+    // Se já houver um vigilante salvo (recarregou a página), mantém.
+    exigirLoginSeNecessario();
+
+    // API pública (debug / integração futura)
+    window.SorteadorRevista = {
+      realizarSorteio: realizarSorteio,
+      carregarHistorico: carregarHistorico,
+      calcularEstatisticas: calcularEstatisticas,
+      exportarCSV: exportarCSV,
+      limparHistorico: limparHistorico,
+      definirProbabilidade: definirProbabilidade,
+      EventBus: EventBus
+    };
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", init);
+  } else {
+    init();
+  }
+})();
+</script>
+</body>
+</html>
